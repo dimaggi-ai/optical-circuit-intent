@@ -1,0 +1,108 @@
+"""What to ask an optical plant for, when it is legal to ask, and what it costs.
+
+Six models, each usable on its own:
+
+``intent``
+    A verb, two endpoints, a bandwidth, a boundary. Compiles to a plan of
+    generic operations. No vendor session is opened; plans are returned, not
+    executed (DECISIONS.md D2).
+``legality``
+    When a retune is invisible, when it stalls the job, and when it kills it.
+    Two defensible objectives that disagree over a wide band of retune times.
+``radix``
+    Ports are not interchangeable across trunks. Free ports that cannot serve
+    pending demand are stranded, and stranded ports are the fragmentation
+    number that matters.
+``checkpoint``
+    The stop tax you can see in a training curve, and the contention tax you
+    cannot see unless you measure it.
+``drift``
+    The declared circuit against the measured one, and a forecast of when a
+    path that is fine now stops being fine.
+``ledger``
+    All of the above, aged and totalled, in the shape finance already reads.
+
+``drift.compare`` and ``checkpoint.compare`` are both named ``compare`` in
+their own modules, which is right there and wrong here, so this namespace
+exports them as :func:`compare_circuit` and :func:`compare_strategies`.
+"""
+
+from __future__ import annotations
+
+from . import checkpoint, drift, intent, ledger, legality, radix
+from .checkpoint import (
+    CheckpointPlan,
+    StallCause,
+    StallEvidence,
+    Strategy,
+    Tax,
+    cheapest_durable,
+    classify_stall,
+)
+from .checkpoint import compare as compare_strategies
+from .checkpoint import tax
+from .drift import (
+    DeclaredCircuit,
+    DriftForecast,
+    DriftReport,
+    DriftVerdict,
+    MeasuredCircuit,
+    THERMAL_DELAY_PS_PER_KM_K,
+    ber_from_margin_db,
+    ber_from_q,
+    forecast,
+    q_from_margin_db,
+    thermal_rtt_swing_us,
+)
+from .drift import compare as compare_circuit
+from .intent import Boundary, Endpoint, Intent, Operation, Plan, Verb, compile_intent
+from .ledger import AGING_BUCKETS, Cause, DebtEntry, Ledger, debt_from_drift, debt_from_stranded_ports
+from .legality import (
+    JobRhythm,
+    Legality,
+    RetuneCost,
+    assess,
+    cheapest_legal,
+    disagreement_intervals,
+    disagreement_width_s,
+    ladder,
+    objectives_disagree,
+    soonest_legal,
+)
+from .radix import (
+    Allocation,
+    OpticalSwitch,
+    Preemption,
+    RadixExhausted,
+    Request,
+    Trunk,
+    preemption_plan,
+)
+
+__version__ = "1.0.0"
+
+__all__ = [
+    "__version__",
+    # modules
+    "checkpoint", "drift", "intent", "ledger", "legality", "radix",
+    # intent
+    "Boundary", "Endpoint", "Intent", "Operation", "Plan", "Verb", "compile_intent",
+    # legality
+    "JobRhythm", "Legality", "RetuneCost", "assess", "cheapest_legal", "ladder",
+    "soonest_legal", "objectives_disagree", "disagreement_intervals",
+    "disagreement_width_s",
+    # radix
+    "Allocation", "OpticalSwitch", "Preemption", "RadixExhausted", "Request", "Trunk",
+    "preemption_plan",
+    # checkpoint
+    "CheckpointPlan", "Strategy", "Tax", "tax", "compare_strategies",
+    "cheapest_durable", "StallCause", "StallEvidence", "classify_stall",
+    # drift
+    "DeclaredCircuit", "MeasuredCircuit", "DriftReport", "DriftVerdict",
+    "DriftForecast", "compare_circuit", "forecast", "ber_from_q",
+    "q_from_margin_db", "ber_from_margin_db", "thermal_rtt_swing_us",
+    "THERMAL_DELAY_PS_PER_KM_K",
+    # ledger
+    "Cause", "DebtEntry", "Ledger", "AGING_BUCKETS", "debt_from_drift",
+    "debt_from_stranded_ports",
+]

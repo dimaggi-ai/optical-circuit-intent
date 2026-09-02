@@ -1,0 +1,21 @@
+{
+  "declared": {
+    "a_hall": "hall-a",
+    "bw_gbps": 800.0,
+    "circuit_id": "stitch-ab-1",
+    "connectors": 4,
+    "il_db": 3.0,
+    "path_km": 1.2,
+    "rtt_us": 8.0,
+    "z_hall": "hall-b"
+  },
+  "measured": {
+    "age_s": 12.0,
+    "ber": 4e-16,
+    "bw_gbps": 800.0,
+    "circuit_id": "stitch-ab-1",
+    "il_db": 3.1,
+    "rtt_us": 8.2,
+    "temperature_c": 31.0
+  }
+}

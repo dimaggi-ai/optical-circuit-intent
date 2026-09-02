@@ -1,0 +1,54 @@
+{
+  "hall_id": "hall-a",
+  "trunks": [
+    {
+      "peer_hall": "hall-b",
+      "ports": 32,
+      "port_bw_gbps": 400.0
+    },
+    {
+      "peer_hall": "hall-c",
+      "ports": 8,
+      "port_bw_gbps": 400.0
+    }
+  ],
+  "allocations": [
+    {
+      "circuit_id": "stitch-ab-1",
+      "peer_hall": "hall-b",
+      "bw_gbps": 4000.0,
+      "priority": 3,
+      "job_id": "pretrain-7"
+    },
+    {
+      "circuit_id": "stitch-ab-2",
+      "peer_hall": "hall-b",
+      "bw_gbps": 6000.0,
+      "priority": 1,
+      "job_id": "eval-2"
+    },
+    {
+      "circuit_id": "stitch-ab-3",
+      "peer_hall": "hall-b",
+      "bw_gbps": 2000.0,
+      "priority": 1,
+      "job_id": "eval-9"
+    }
+  ],
+  "demand": [
+    {
+      "circuit_id": "stitch-ab-4",
+      "peer_hall": "hall-b",
+      "bw_gbps": 3200.0,
+      "priority": 5,
+      "job_id": "pretrain-8"
+    },
+    {
+      "circuit_id": "stitch-ac-1",
+      "peer_hall": "hall-c",
+      "bw_gbps": 6000.0,
+      "priority": 5,
+      "job_id": "pretrain-8"
+    }
+  ]
+}

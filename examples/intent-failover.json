@@ -1,0 +1,19 @@
+{
+  "circuit_id": "stitch-ac-1",
+  "endpoints": [
+    {
+      "hall_id": "hall-a",
+      "port": "ocs-1/7"
+    },
+    {
+      "hall_id": "hall-c",
+      "port": "ocs-2/2"
+    }
+  ],
+  "hold_s": 21600.0,
+  "job_id": "pretrain-7",
+  "labels": {},
+  "min_bw_gbps": 800.0,
+  "replaces": "stitch-ab-1",
+  "verb": "failover-to"
+}

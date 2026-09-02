@@ -1,0 +1,52 @@
+{
+  "entries": [
+    {
+      "cause": "drift",
+      "circuit_id": "stitch-ab-1",
+      "closed_at_s": null,
+      "daily_accelerator_hours": 5898.24,
+      "entry_id": "drift-stitch-ab-1",
+      "hall": "hall-a",
+      "note": "stitch-ab-1: rtt_us: declared 8, measured 40 (+400.0%, tolerance 10%); il_db: declared 3, measured 6.4 (+113.3%, tolerance 20%)",
+      "opened_at_s": 2160000.0,
+      "remediation_accelerator_hours": 12288,
+      "upfront_accelerator_hours": 0.0
+    },
+    {
+      "cause": "stranded-ports",
+      "circuit_id": null,
+      "closed_at_s": null,
+      "daily_accelerator_hours": 1152.0,
+      "entry_id": "stranded-hall-a",
+      "hall": "hall-a",
+      "note": "6 free ports cannot serve pending demand",
+      "opened_at_s": 8640000.0,
+      "remediation_accelerator_hours": 900,
+      "upfront_accelerator_hours": 0.0
+    },
+    {
+      "cause": "retune-stall",
+      "circuit_id": null,
+      "closed_at_s": null,
+      "daily_accelerator_hours": 0.0,
+      "entry_id": "retune-ab",
+      "hall": "hall-b",
+      "note": "epoch-boundary wait",
+      "opened_at_s": 6912000.0,
+      "remediation_accelerator_hours": 0.0,
+      "upfront_accelerator_hours": 2945.024
+    },
+    {
+      "cause": "checkpoint-contention",
+      "circuit_id": null,
+      "closed_at_s": null,
+      "daily_accelerator_hours": 4246.732800000001,
+      "entry_id": "ckpt-b",
+      "hall": "hall-b",
+      "note": "async replicate vs collective",
+      "opened_at_s": 9676800.0,
+      "remediation_accelerator_hours": 8192.0,
+      "upfront_accelerator_hours": 0.0
+    }
+  ]
+}

@@ -1,0 +1,19 @@
+{
+  "circuit_id": "stitch-ab-9",
+  "endpoints": [
+    [
+      "hall-a",
+      "ocs-1/4"
+    ],
+    [
+      "hall-b",
+      "ocs-3/9"
+    ]
+  ],
+  "hold_s": null,
+  "job_id": "pretrain-7",
+  "labels": {},
+  "min_bw_gbps": 800.0,
+  "replaces": null,
+  "verb": "request"
+}

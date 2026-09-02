@@ -1,0 +1,46 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "optical-circuit-intent"
+version = "1.0.0"
+description = "What to ask an optical plant for, when it is legal to ask, and what the answer costs"
+readme = "README.md"
+requires-python = ">=3.10"
+license = { text = "MIT" }
+authors = [{ name = "Margaret Nanyonga" }]
+keywords = [
+  "optical circuit switching",
+  "distributed training",
+  "capacity planning",
+  "data center interconnect",
+  "checkpointing",
+]
+classifiers = [
+  "Intended Audience :: Science/Research",
+  "Intended Audience :: System Administrators",
+  "License :: OSI Approved :: MIT License",
+  "Programming Language :: Python :: 3.12",
+  "Topic :: Scientific/Engineering",
+  "Topic :: System :: Distributed Computing",
+]
+dependencies = []
+
+[project.optional-dependencies]
+dev = ["pytest==8.3.4"]
+
+[project.urls]
+Homepage = "https://github.com/dimaggi-ai/optical-circuit-intent"
+Research = "https://dimaggi-ai.github.io/research"
+
+[project.scripts]
+ocintent = "ocintent.cli:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["src", "validation"]
+addopts = "-q"

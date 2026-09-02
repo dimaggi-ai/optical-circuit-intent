@@ -1,0 +1,27 @@
+cff-version: 1.2.0
+message: "If you use this work, please cite it as below."
+title: "Optical circuit intent: when a retune is legal, what it costs, and what the plant is actually doing"
+abstract: >-
+  Six models for the circuit layer under a training job that crosses a hall
+  boundary: an intent language that compiles to vendor-neutral operations; a
+  legality ladder that says when a retune is invisible, when it stalls the job
+  and when it kills it, with two defensible objectives that disagree over a
+  wide band of retune times; a radix model in which free optical ports are
+  stranded because they are on the wrong trunk; a checkpoint model separating
+  the stop tax you can see in a training curve from the contention tax you
+  cannot; a declared-versus-measured comparison with a drift forecast built on
+  the published error-rate relation; and a capacity-debt ledger in the shape of
+  an aging schedule.
+authors:
+  - family-names: Nanyonga
+    given-names: Margaret
+version: 1.0.0
+date-released: "2026-09-01"
+license: MIT
+repository-code: "https://github.com/dimaggi-ai/optical-circuit-intent"
+keywords:
+  - optical circuit switching
+  - distributed training
+  - capacity planning
+  - data center interconnect
+  - checkpointing
