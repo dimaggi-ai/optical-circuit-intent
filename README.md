@@ -53,7 +53,7 @@ retune of 60 s against a 16,384-accelerator job
 ```
 
 The sharp part: **whether checkpoints cross the stitch changes that wait by
-179×.** If they stay local, the cheap option waits 300 s for the next
+144×.** If they stay local, the cheap option waits 300 s for the next
 checkpoint. If they replicate over the same circuit being retuned, no checkpoint
 boundary is quiet, the cheap option falls through to the next *job* boundary,
 and the wait becomes 43,200 s. A storage decision, made by a different team,
