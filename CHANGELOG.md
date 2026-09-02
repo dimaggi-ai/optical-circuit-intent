@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 1.0.1 — 2026-09-02
 
 - Fixed: the validation registry mangled the name of any point that raised,
   because it stripped `point_` everywhere in the function name rather than as a
