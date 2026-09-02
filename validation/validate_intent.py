@@ -756,7 +756,7 @@ def run_registry() -> List[Point]:
             results.append(check())
         except Exception as exc:  # noqa: BLE001 - a raising point is a failing point
             results.append(Point(
-                check.__name__.replace("point_", "").replace("_", "-"),
+                check.__name__.removeprefix("point_").replace("_", "-"),
                 SANITY, False, f"raised {type(exc).__name__}: {exc}",
             ))
     return results

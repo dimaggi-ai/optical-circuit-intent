@@ -1,5 +1,16 @@
 # Changelog
 
+## Unreleased
+
+- Fixed: the validation registry mangled the name of any point that raised,
+  because it stripped `point_` everywhere in the function name rather than as a
+  prefix. `point_crossing_checkpoints_never_widens_a_quiet_window` was reported
+  as `crossing-checks-never-widens-a-quiet-window`, and
+  `point_the_intervals_are_pointwise_correct` as
+  `the-intervals-are-wise-correct`. Only the failure path was affected, so a
+  green run never showed it. Found while building `slice-packer-torus`, which
+  had inherited the same line.
+
 ## 1.0.0 — 2026-09-01
 
 First release.
