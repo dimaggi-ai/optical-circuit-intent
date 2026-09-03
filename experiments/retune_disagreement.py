@@ -1,9 +1,13 @@
 #!/usr/bin/env python3
 """How wide is the band where the two retune objectives disagree?
 
-Reproduces the first figure the README quotes. Prints a table and exits 1 if
-the headline claim --- that the band is non-empty at the reference rhythm ---
-stops holding.
+Reproduces the first figure the README quotes, including the
+checkpoint-locality multiplier. Every derived number the README states is
+printed here rather than computed by hand --- the 1.0.0 README shipped a
+multiplier of 179x beside waits of 300 s and 43,200 s, a hand derivation of a
+different quantity than the sentence named, and nothing could catch it
+because no committed program ever printed it. Exits 1 if the headline claim
+--- that the band is non-empty at the reference rhythm --- stops holding.
 """
 
 from __future__ import annotations
@@ -41,6 +45,7 @@ def main() -> int:
     print("checkpoint every 250 steps taking 120 s, epoch every 4,000 steps.")
     print()
 
+    cheap_delay = {}
     for crosses in (False, True):
         rhythm = reference(checkpoint_crosses_stitch=crosses)
         intervals = disagreement_intervals(rhythm)
@@ -60,7 +65,15 @@ def main() -> int:
               f"{soon.lost_accelerator_hours:,.1f} accel-h)")
         print(f"                    a storage decision, not a network one, moves the "
               f"wait by {abs(cheap.total_delay_s - soon.total_delay_s):,.0f} s")
+        cheap_delay[crosses] = cheap.total_delay_s
         print()
+
+    mult = cheap_delay[True] / cheap_delay[False]
+    print("THE CHECKPOINT-LOCALITY MULTIPLIER")
+    print(f"  whether checkpoints cross the stitch changes the cheap option's wait")
+    print(f"  by {mult:,.0f}x ({cheap_delay[False]:,.0f} s -> {cheap_delay[True]:,.0f} s).")
+    print("  The README quotes this line verbatim; if it changes, change the README.")
+    print()
 
     rng = random.Random(SEED)
     widths, counts = [], {}
