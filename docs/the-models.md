@@ -269,3 +269,62 @@ What the reader will not do: skip. A missing or altered file raises
 `HedgeDataError` with the `make data` instruction in it, `ocintent hedge`
 exits 2, and every registry point that reads the link fails in its own kind
 (D13).
+
+---
+
+## `adapters.tapi` — the same plan, as one controller's calls
+
+Not a seventh model: a binding. `compile_plan` takes the generic plan the
+`intent` model returns and writes it as the RESTCONF calls of one documented
+controller interface, the ONF Transport API at its 2.1.5 data tree under the
+TR-547 v1.2 reference implementation agreement (SOURCES.md S7, S8). Each call
+carries the status, headers and fields the agreement says a conforming reply
+has. Nothing is sent.
+
+```python
+import json, time
+from ocintent.intent import Intent
+from ocintent.adapters import tapi
+
+it = Intent.from_dict(json.load(open("examples/tapi-request.json")))
+tp = tapi.compile_intent_to_tapi(
+    it,
+    profile=tapi.Profile(layer="PHOTONIC_MEDIA", slot_width_ghz=50),
+    sip_table=tapi.SipTable.from_json("examples/tapi-sip-table.json"),
+    now_s=time.time(),
+)
+tp.refused                        # None, or the sentence saying why no call was emitted
+[c.method for c in tp.calls]      # ['GET', 'GET', 'POST', 'GET', 'GET']
+tp.calls[2].body                  # the create body, under "tapi-connectivity:connectivity-service"
+tp.calls[2].expect_status         # (200, 201); tp.calls[2].expect_headers is ('Location',)
+[u.operation for u in tp.unmapped]  # ['reserve_ports', 'verify_path.expect_min_bw_gbps']
+tp.destructive_calls              # () for a request; one DELETE, last, for a failover or release
+print(tp.render())                # the numbered calls `ocintent tapi` prints
+```
+
+The SIP table is the plant owner's: `hall:port` to service interface point
+uuid, qualifier and direction, committed beside the intents. An endpoint it
+does not hold is refused with no call, and two endpoints whose directions
+cannot form a service are refused the same way; the adapter never derives a
+SIP from a port name, because the two are named by different people for
+different reasons. The uuid of the service is derived from the circuit id
+under a fixed namespace, so the same intent compiles to the same bytes and a
+retry sends the same create.
+
+What TAPI 2.1 cannot express is returned as `unmapped`, with the reason:
+there is no reservation primitive, so `reserve_ports` is two reads of the
+SIPs and `release_ports` is nothing; a bandwidth floor cannot be checked at
+the photonic layer, where `requested-capacity` is a slot width in GHz.
+`extend_hold` is a PUT of the whole service object under a use case TR-547
+v1.2 marks draft (DECISIONS.md D18): it is emitted only when the caller
+passes `current_service`, the object as the controller last returned it,
+with its read-only attributes stripped and only the end time changed, and a
+service whose administrative state is LOCKED is refused.
+
+The profile is one dataclass (`tapi.Profile`) holding the YANG tag, the
+RESTCONF root, the layer, the slot width and the service type; one ships,
+and a 2.5.x profile is a second instance once public 2.5 fixtures exist
+(DECISIONS.md D17). The vendored 2.1.5 modules and the fourteen recorded
+replies of the one mock the calls have been run through live under
+`data/tapi` with their manifests; `data/tapi/README.md` says what each is
+and how to re-record.

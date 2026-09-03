@@ -1,0 +1,74 @@
+{
+  "_comment": "Replies recorded from the TeraFlowSDN hackfest TAPI mock (SOURCES.md S9) run locally with its shipped mini-ols-context.json, one request per file in the order the file names give. The mock is a swagger-codegen 2.1.3 server, not a conformant controller: experiments/tapi_departures.py prints where its replies depart from TR-547 v1.2, and the registry asserts that set. No call in this directory was made against a real controller.",
+  "mock": {
+    "repository": "https://labs.etsi.org/rep/tfs/controller",
+    "commit": "fb8707871eba26806cac7ac373c70b2bb5bd26fc",
+    "path": "hackfest/tapi/server",
+    "archive": "https://labs.etsi.org/rep/tfs/controller/-/archive/fb8707871eba26806cac7ac373c70b2bb5bd26fc/controller-fb8707871eba26806cac7ac373c70b2bb5bd26fc.tar.gz?path=hackfest/tapi/server",
+    "archive_sha256": "50b1b7c407e37c4f15ff3cfc3e2fd63f158faf82e889c3fd11449c548fdd23f9",
+    "archive_note": "sha256 of that subtree archive as GitLab serves it; reproduced on a second download on 2026-09-03",
+    "license": "Apache-2.0",
+    "generator": "swagger-codegen 3.0.35, packageVersion 2.1.3",
+    "runtime": "Python 3.12.6, connexion 2.14.2, Flask 2.2.5, Werkzeug 2.2.3",
+    "context": "database/mini-ols-context.json (38 PHOTONIC_MEDIA SIPs, 4 nodes, 10 links, empty connectivity-context)"
+  },
+  "recorded_on": "2026-09-03",
+  "files": {
+    "01-get-context-fields-uuid.json": {
+      "sha256": "226f2df88bdbd3b69e2b6b390c4f299848fde984e114dd044d0076e2891ca56b",
+      "bytes": 38933
+    },
+    "02-get-sip-node-1-port-13-input.json": {
+      "sha256": "4f3d66be46ab325c1579fd7b12830edcc1da4e391da0b5e1e7a6704281d3187b",
+      "bytes": 671
+    },
+    "03-get-sip-unknown.json": {
+      "sha256": "3a33c52c56c45ee5eeca42939e2597d2189db5c528a3590a4f83340263f09ab9",
+      "bytes": 342
+    },
+    "04-get-connectivity-context-empty.json": {
+      "sha256": "f2a050e680b1137cc89a4a174cbf59895f73dac5e631ebeec9f7dc44a242e05b",
+      "bytes": 427
+    },
+    "05-post-connectivity-context-cs1.json": {
+      "sha256": "352a47488e4928b418411f2130610afea49247053c943605dd2a9cc39a9cd5e5",
+      "bytes": 2269
+    },
+    "06-get-connectivity-service-cs1.json": {
+      "sha256": "e52ecd33e19d39a47d345d1b8e75a409033e5bc44362540f188867b762fe0c4b",
+      "bytes": 2331
+    },
+    "07-get-connection-cs1.json": {
+      "sha256": "45394022f07f96f3605c28e0b969e86c6e826dd447b11f49f313b969211af70e",
+      "bytes": 732
+    },
+    "08-put-connectivity-service-cs1.json": {
+      "sha256": "49f1dec8598e0064ac7ddc78c553fc303902b0c0b191901fe7325325e5cf1ae6",
+      "bytes": 2366
+    },
+    "09-post-connectivity-context-cs1-again.json": {
+      "sha256": "352a47488e4928b418411f2130610afea49247053c943605dd2a9cc39a9cd5e5",
+      "bytes": 2269
+    },
+    "10-delete-connectivity-service-cs1.json": {
+      "sha256": "853a19e73a071b3f1603c916a941184df0964719471a9d0be7b924bd7ee37976",
+      "bytes": 396
+    },
+    "11-get-connectivity-service-cs1-after-delete.json": {
+      "sha256": "d5038f5a5c52be305ed707150d6278b4318c4ea5060f6aa36c1d11f756a87e1b",
+      "bytes": 403
+    },
+    "12-delete-connectivity-service-unknown.json": {
+      "sha256": "95a7d616a6991de4019e1da19799cc443e13defd25cb1a2f7e4212d5569dfe92",
+      "bytes": 370
+    },
+    "13-post-connectivity-service-list-cs1.json": {
+      "sha256": "a14bca8a6a3d4ac6e946abffb1e3dbf5d901334bcbcf144e719fccd0729029e9",
+      "bytes": 2290
+    },
+    "14-get-connectivity-context-after.json": {
+      "sha256": "ca7d2d161a5594df2109e0176e3fd4a4d0fc7985a2ce0e8a1904004e4eb1ff89",
+      "bytes": 2989
+    }
+  }
+}

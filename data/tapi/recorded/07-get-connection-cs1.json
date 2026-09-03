@@ -1,0 +1,26 @@
+{
+  "body": {
+    "connection-end-point": [
+      {
+        "connection-end-point-uuid": "cep13",
+        "node-edge-point-uuid": "node-1-port-3"
+      },
+      {
+        "connection-end-point-uuid": "cep32",
+        "node-edge-point-uuid": "node-3-port-2"
+      }
+    ],
+    "uuid": "9a1f6b2e-6c1a-5c0b-8e5d-3f1c2a7b9d10"
+  },
+  "headers": {
+    "Connection": "close",
+    "Content-Length": "291",
+    "Content-Type": "application/yang-data+json",
+    "Date": "Thu, 03 Sep 2026 20:28:35 GMT",
+    "Server": "Werkzeug/2.2.3 Python/3.12.6"
+  },
+  "method": "GET",
+  "path": "/data/tapi-common:context/tapi-connectivity:connectivity-context/connection=9a1f6b2e-6c1a-5c0b-8e5d-3f1c2a7b9d10/",
+  "request_body": null,
+  "status": 200
+}

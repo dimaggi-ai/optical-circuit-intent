@@ -1,6 +1,6 @@
 # Decisions
 
-Twelve choices this repository made, why, and what each one cost. Several were
+Twenty choices this repository made, why, and what each one cost. Several were
 made *after* an earlier version shipped something wrong; those say so.
 
 ## D1 — Six models in one repository, not six repositories
@@ -148,6 +148,16 @@ so one broken check made a red registry look like a crash. `run_registry()`
 wraps each point and converts a raised exception into a failing point carrying
 the exception text.
 
+Since 1.2.0 a point may declare the kind and anchor it reports in
+(`_declares`), and a point that raises then fails in that kind, with the
+anchor it declared. The first cut of the TAPI binding reported every raising
+point as sanity, so one vendored YANG file taken away moved the summary from
+17/21/18 to 15/21/20, and two calibrated points left their column without
+failing in it; adversarial QA caught it. Every TAPI point declares, a test
+checks each declaration against the Point the function builds, and a
+mutation test takes the YANG directory and the SIP table away in turn and
+asserts the measured red set by kind, with the kind counts unmoved.
+
 ## D13 — The measured link's files are fetched and pinned, never vendored, and their absence is red, not skipped
 
 The HEDGE repository publishes its raw hardware-experiment files with no
@@ -262,3 +272,121 @@ the disagreement on every run instead, and the CLI takes `--detection`.
 **Cost.** A caller who models a coherent link and forgets the argument gets
 the direct-detection shape, which is steeper. The docstrings and the
 `ocintent hedge` output both say so.
+
+## D16 — The TAPI modules and the mock's replies are vendored with manifests; the measured link's files are not
+
+The binding is checked against two things that have to be on disk: the
+2.1.5 YANG modules and their tree renderings, from which the registry reads
+the children of `connectivity-service`, the enumerations and the uuid
+typedef; and the fourteen replies of the one server the calls have been run
+through. Both are committed, each directory with a `MANIFEST.json` of
+SHA-256 digests beside it, and a registry point refuses to read a file whose
+digest has moved. The YANG is Apache-2.0, so vendoring is permitted and the
+schema check cannot depend on the network (SOURCES.md S7); the replies are
+what the mock said, and committing them with digests is the only way the
+point that says "the read-back echoes every attribute the create body sent"
+can be checked by anyone but the person who recorded them.
+
+The HEDGE files under `data/hedge` are fetched instead (D13). Same rule,
+opposite outcome: the licence decides whether a file may be committed, and
+the manifest decides whether it may be read.
+
+**Cost.** Six specification files and fourteen recordings in the repository,
+pinned to one YANG tag and one mock commit. Re-recording is a manual step
+(`data/tapi/record_replies.py`) and the departure list has to be re-pinned
+with it.
+
+## D17 — The first profile is the 2.1.5 data tree with TR-547 v1.2, not 2.6.0
+
+The choice was made from the release notes, read before pinning. TAPI
+2.6.0's own notes disclose an open defect in `tapi-connectivity.yang`
+(config leafrefs to non-config leaves, issue #616, deferred to 2.7); 2.5.2 is
+the corrected 2.5 line and has no public fixtures; 2.1.3 is the release the
+TAPI project itself calls the most deployed and the only line with public
+fixtures — a hackfest mock, an open controller's driver, a vendor guide with
+its bodies elided — and 2.1.5 is the last tag of that line, with TR-547 v1.2
+the reference implementation agreement written against it (SOURCES.md S8).
+A binding that cannot be run through anything is a document; this one can
+be run through a mock, and the registry pins where the mock is wrong.
+
+The profile is a dataclass, not a constant. A 2.5.x profile is a second
+instance with a different body template, added when 2.5 fixtures exist; it
+is a documented next step, not a hidden default, and the plan names the
+profile it was compiled under on its first line.
+
+**Cost.** The 2.1 client shape — constraints at the top level of the
+service, `requested-capacity` beside them — is not what a 2.5 or 2.6
+controller expects, and nothing here pretends otherwise. Until a second
+profile exists, a plant on a newer line has no binding.
+
+## D18 — A hold extension is a PUT of the whole service object under draft UC 11a, and a LOCKED service is refused
+
+TR-547 v1.2's Table 5 leaves PUT standing on `connectivity-service={uuid}`
+and strikes PATCH, and UC 11a shows a PUT that carries the whole object and
+is answered with 204. UC 11a is marked draft and discusses path constraints;
+no use case in the agreement covers a schedule change. The adapter emits the
+PUT anyway, because a schedule is a client-writable attribute of the same
+object, and it prints a note on every plan that says which use case it is
+riding and that the use case does not cover it.
+
+It emits the PUT only when the caller supplies the object as the controller
+last returned it. Synthesising a whole object from the intent would
+overwrite attributes the controller holds and the intent never set, so
+without the object the operation is returned as `unmapped` with the end time
+the caller would have to write. The read-only attributes — `connection`,
+`operational-state` and `lifecycle-state` on the service, their end-point
+counterparts, and the three read-only leaves under `latency-characteristic`;
+a test derives the set from the vendored tree, so a leaf the strip forgot
+fails there — are stripped before the PUT, only `end-time` is changed, and a
+service whose administrative state is LOCKED is refused, with no call at
+all, because the use case operates on an UNLOCKED one. The first cut handed
+the GET back beside that refusal, against the docstring's own promise that a
+refusal carries no call, and did the same for an object whose uuid was not
+the intent's; adversarial QA caught both. A controller's uppercase uuid in
+the object is accepted and written back lowercase.
+
+**Cost.** Two round trips where a controller that implemented PATCH would
+take one, and a caller who has to fetch the object before asking for more
+time. The alternative was a PATCH the agreement strikes through.
+
+## D19 — Schedule times are written in the layout tapi-common's own `date-and-time` typedef describes, not RFC 3339
+
+The first cut wrote `start-time` and `end-time` as RFC 3339
+(`2026-09-01T00:00:00Z`), and its docstring said the typedef was RFC 6991's.
+It is not. In the vendored 2.1.5 `tapi-common.yang` the `date-and-time`
+typedef is a bare `string`, the module imports nothing, so RFC 6991's
+`ietf-yang-types` is not in the tree, and the typedef's own description gives
+the layout `yyyyMMddhhmmss.s[Z|{+|-}HHMm]`. TR-547 v1.2 names no layout for
+the schedule; the one timestamp layout its text names (p. 188, the
+CREATION_TIME row) is for a name value. Adversarial QA read the docstring
+against the module and found the claim unsupported.
+
+The adapter now writes the typedef's layout in UTC with whole seconds
+(`20260901000000.0Z`); a calibrated point reads the layout out of the
+typedef's description and checks every schedule value in every compiled body
+against it; and the mock's replies were re-recorded with the new bodies. The
+CLI's `--now` still takes RFC 3339 UTC or epoch seconds, because that is what
+a caller's clock gives; the conversion is the adapter's.
+
+**Cost.** A layout no other tool of the caller's writes natively, and one a
+controller reading the typedef as free text may still parse differently. The
+alternative was to keep RFC 3339 on the strength of a description that does
+not say it.
+
+## D20 — The capacity value is the JSON string RFC 7951 makes of a uint64
+
+`capacity-value` is a `uint64` in the vendored tree. RFC 7951 section 6.1
+encodes 64-bit integers as JSON strings, TR-547 v1.2 section 2.6.1 mandates
+RFC 7951, and Table 23 writes the requested capacity's value as `"[0-9]{8}"`,
+quoted (p. 116). The adapter emitted a number, the recorder sent a string,
+and nothing held the two equal; a test now holds the recorder's body equal
+to the adapter's for the same intent, and the adapter emits `"value": "50"`.
+
+The mock's OpenAPI stub types the value `integer`, accepts the string and
+echoes a number back. That echo is on the printed departure list (the tenth,
+kind `encoding`), and the read-back echo point compares the two as strings
+so that it can still say every sent leaf came back.
+
+**Cost.** A body that a client written from the OpenAPI stub rather than
+the YANG would type differently. The alternative was to follow the stub
+against the encoding the agreement mandates.

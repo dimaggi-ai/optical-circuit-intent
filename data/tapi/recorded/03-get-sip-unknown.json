@@ -1,0 +1,13 @@
+{
+  "body": null,
+  "headers": {
+    "Connection": "close",
+    "Content-Type": "application/yang-data+json",
+    "Date": "Thu, 03 Sep 2026 20:28:35 GMT",
+    "Server": "Werkzeug/2.2.3 Python/3.12.6"
+  },
+  "method": "GET",
+  "path": "/data/tapi-common:context/service-interface-point=no-such-sip/",
+  "request_body": null,
+  "status": 204
+}

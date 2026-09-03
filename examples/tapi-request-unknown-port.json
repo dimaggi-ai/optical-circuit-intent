@@ -1,0 +1,10 @@
+{
+  "verb": "request",
+  "circuit_id": "stitch-19-1",
+  "endpoints": [
+    {"hall_id": "node-1", "port": "port-13-input"},
+    {"hall_id": "node-9", "port": "port-1"}
+  ],
+  "hold_s": 21600,
+  "min_bw_gbps": 800.0
+}

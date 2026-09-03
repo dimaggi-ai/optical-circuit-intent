@@ -48,7 +48,11 @@ closer to the 20 dB per decade of Q an OSNR-limited link implies than to
 the 10 dB relation the drift model shipped with, and steeper than both; the
 model now carries both branches. It is a laboratory link with two induced
 faults and an availability probe, and nothing measured on it transfers to
-another plant as a constant.
+another plant as a constant. The generic plan also compiles to one named
+controller interface, the TAPI 2.1.5 data tree under the TR-547 v1.2
+agreement, call by call with the reply each must receive; the calls are
+handed back, never sent, and the one server they have been run through is
+a mock whose ten departures from the agreement the repository prints.
 
 ## 1. Model
 
@@ -75,11 +79,28 @@ quotes no currency; converting accelerator-hours to money needs a rate
 only the plant owner has, and one invented here would travel downstream
 looking like a measurement.
 
+The plan is generic until a plant is named. The binding writes it as the
+RESTCONF calls the ONF Transport API takes at its 2.1.5 data tree, under
+the TR-547 v1.2 reference implementation agreement: two reads of the
+service interface points, one create carrying the client-mandatory
+attributes of the agreement's Tables 23 and 24 and expecting the Location
+header its use case makes a MUST, two reads back, and, for a failover, one
+DELETE that is always last. The plant owner's table from port to service
+interface point is an input; an endpoint it does not hold is refused with
+no call, and the adapter never guesses. What the interface cannot express
+is returned as unmapped rather than pretended: TAPI 2.1 has no reservation
+primitive, so two callers can pass the reads and race at the create; a
+bandwidth floor cannot be checked at the photonic layer, where capacity is
+spectrum; a hold extension rides a use case the agreement marks draft.
+The first profile is 2.1.5 rather than 2.6.0 because 2.6.0's own release
+notes disclose an open YANG defect, and because 2.1 is the only line with
+public fixtures a binding can be run through.
+
 ## 2. Validation
 
-The registry holds forty points — eight calibrated, seventeen emergent,
-fifteen sanity — and prints thirteen declined items before any result.
-The suite is 174 tests and twenty-one examples, each checked
+The registry holds fifty-seven points — eighteen calibrated, twenty-one
+emergent, eighteen sanity — and prints nineteen declined items before any
+result. The suite is 276 tests and twenty-nine examples, each checked
 against its documented output. Mutation tests delete machinery and assert
 the measured set of points that go red against a green control. Emergent
 findings (the disagreement band, the double crossover, the stranding
@@ -115,6 +136,34 @@ mutation deletes the re-timing and places each interval at its flush
 stamp, which is the reading this revision replaced: exactly the three
 points that read the outage to the transponder's resolution go red.
 
+Seventeen points read the binding. Ten are calibrated against the vendored
+2.1.5 modules and the agreement's text: every emitted call is a Table 5
+path with a standing method; the create body's keys are children of the
+service in the tree, under a module-qualified root key, and carry the
+client-mandatory attributes of Tables 23 and 24; the create expects the
+Location header; the uuid is lowercase RFC 4122; photonic capacity is in
+GHz with the unit in the YANG enumeration; the schedule times follow the
+layout the date-and-time typedef's own description gives; a delete expects
+204; a hold extension is a PUT of the whole object and a LOCKED service is
+refused with no call.
+Four are emergent — one destructive call per failover and it is last, an
+unknown endpoint refuses with no call, the same intent compiles to the
+same bytes, a service with no slot width omits the capacity container —
+and three are sanity, on the recordings of the one server the calls have
+been run through: a hackfest mock generated from the 2.1.3 OpenAPI, whose
+fourteen replies are committed with their digests and whose departures
+from the agreement are pinned as a list rather than hidden: ten, in seven
+replies — a create answered 204 with no Location header, unknown uuids
+answered 204 where the agreement says 404, a PUT answered 200 with stub
+text, a duplicate uuid accepted, a uint64 echoed as a JSON number where
+RFC 7951 writes a string. A mock is not a conformance reference,
+so no point is calibrated against it. Thirteen mutations break the binding
+and assert measured red sets; one of them, a create that stopped
+expecting the Location header, reddened nothing until the calibrated
+point for it was written, which is the reason it exists, and another
+takes a vendored file away and requires every point that reads it to fail
+in the kind it declares.
+
 ## 3. What a skeptic should attack
 
 The reference rhythm is one job, not a distribution over jobs, and every
@@ -135,7 +184,12 @@ coherent and the error rate pre-FEC is this repository's reading of a
 paper that says neither. The six measured anchors pin the paper's reading of its own
 files, which validates the parsing and not the models; the retune, radix,
 checkpoint and ledger models remain unmeasured, and the two error-rate
-anchors pin a published relation, not a fleet measurement.
+anchors pin a published relation, not a fleet measurement. The binding
+has never been run against a controller: its bodies parse on a mock of the
+2.1.3 line and are echoed back whole, which says nothing about acceptance,
+and the status codes it expects are ones the agreement itself calls
+experimental. One profile ships, and a plant on the 2.5 or 2.6 line has no
+binding here at all.
 
 ## 4. Conclusion
 

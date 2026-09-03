@@ -104,6 +104,27 @@ for op in plan.operations:
 cross-connect that returns success and a path that carries traffic are different
 claims; the gap between them is exactly what step 2 measures next time.
 
+When the plant speaks TAPI, the binding writes the same plan as the calls
+TR-547 v1.2 documents and hands them back with what each reply must contain
+(`docs/the-models.md`, `adapters.tapi`):
+
+```python
+from ocintent.adapters import tapi
+
+tp = tapi.compile_plan(plan, profile=tapi.Profile(slot_width_ghz=50),
+                       sip_table=tapi.SipTable.from_json("sips.json"), now_s=now)
+if tp.refused:
+    raise NoSuchEndpoint(tp.refused)                      # nothing was emitted
+for call in tp.calls:
+    reply = session.request(call.method, call.path, json=call.body)   # your session
+    if reply.status not in call.expect_status or any(h not in reply.headers for h in call.expect_headers):
+        break                                             # the destructive call, if any, is last
+```
+
+Log `tp.unmapped` beside the plan. It lists what TAPI 2.1 cannot express — a
+reservation, a bandwidth floor at the photonic layer — and a controller that
+returned success has checked none of it.
+
 ## 5. Price durability against the width you got
 
 Not the width you asked for. The cheapest durable checkpoint strategy changes

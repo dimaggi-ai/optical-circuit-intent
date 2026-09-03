@@ -1,0 +1,70 @@
+{
+  "tapi-connectivity:connectivity-service": [
+    {
+      "uuid": "68e1972c-168f-5305-9db6-0fb5ac76cc58",
+      "name": [
+        {
+          "value-name": "SERVICE_NAME",
+          "value": "stitch-12-1"
+        }
+      ],
+      "administrative-state": "UNLOCKED",
+      "service-layer": "PHOTONIC_MEDIA",
+      "service-type": "POINT_TO_POINT_CONNECTIVITY",
+      "connectivity-direction": "UNIDIRECTIONAL",
+      "schedule": {
+        "start-time": "20260901000000.0Z",
+        "end-time": "20260901060000.0Z"
+      },
+      "end-point": [
+        {
+          "local-id": "csep-1",
+          "name": [
+            {
+              "value-name": "CSEP_NAME",
+              "value": "node-1:port-13-input"
+            }
+          ],
+          "layer-protocol-name": "PHOTONIC_MEDIA",
+          "layer-protocol-qualifier": "tapi-photonic-media:PHOTONIC_LAYER_QUALIFIER_NMC",
+          "service-interface-point": {
+            "service-interface-point-uuid": "node-1-port-13-input"
+          },
+          "direction": "INPUT",
+          "role": "SYMMETRIC",
+          "administrative-state": "UNLOCKED"
+        },
+        {
+          "local-id": "csep-2",
+          "name": [
+            {
+              "value-name": "CSEP_NAME",
+              "value": "node-2:port-14-output"
+            }
+          ],
+          "layer-protocol-name": "PHOTONIC_MEDIA",
+          "layer-protocol-qualifier": "tapi-photonic-media:PHOTONIC_LAYER_QUALIFIER_NMC",
+          "service-interface-point": {
+            "service-interface-point-uuid": "node-2-port-14-output"
+          },
+          "direction": "OUTPUT",
+          "role": "SYMMETRIC",
+          "administrative-state": "UNLOCKED"
+        }
+      ],
+      "requested-capacity": {
+        "total-size": {
+          "value": "50",
+          "unit": "GHz"
+        }
+      },
+      "operational-state": "ENABLED",
+      "lifecycle-state": "INSTALLED",
+      "connection": [
+        {
+          "connection-uuid": "68e1972c-168f-5305-9db6-0fb5ac76cc58"
+        }
+      ]
+    }
+  ]
+}

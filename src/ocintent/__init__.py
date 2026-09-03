@@ -25,6 +25,10 @@ Six models, each usable on its own:
     The one measured link: a laboratory testbed that was bent and attenuated
     on purpose while its transponders and a Layer-3 probe were polled. Read
     from the raw files, which are fetched and SHA-pinned rather than vendored.
+``adapters``
+    The generic plan compiled to one documented controller interface and
+    handed back, never sent. One binding ships: the TAPI 2.1.5 RESTCONF data
+    tree under the TR-547 v1.2 agreement (``adapters.tapi``).
 
 ``drift.compare`` and ``checkpoint.compare`` are both named ``compare`` in
 their own modules, which is right there and wrong here, so this namespace
@@ -33,7 +37,7 @@ exports them as :func:`compare_circuit` and :func:`compare_strategies`.
 
 from __future__ import annotations
 
-from . import checkpoint, drift, hedge, intent, ledger, legality, radix
+from . import adapters, checkpoint, drift, hedge, intent, ledger, legality, radix
 from .checkpoint import (
     CheckpointPlan,
     StallCause,
@@ -88,12 +92,12 @@ from .radix import (
     preemption_plan,
 )
 
-__version__ = "1.1.0"
+__version__ = "1.2.0"
 
 __all__ = [
     "__version__",
     # modules
-    "checkpoint", "drift", "hedge", "intent", "ledger", "legality", "radix",
+    "adapters", "checkpoint", "drift", "hedge", "intent", "ledger", "legality", "radix",
     # intent
     "Boundary", "Endpoint", "Intent", "Operation", "Plan", "Verb", "compile_intent",
     # legality

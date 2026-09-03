@@ -1,0 +1,17 @@
+{
+  "body": {
+    "connection": [],
+    "connectivity-service": []
+  },
+  "headers": {
+    "Connection": "close",
+    "Content-Length": "53",
+    "Content-Type": "application/yang-data+json",
+    "Date": "Thu, 03 Sep 2026 20:28:35 GMT",
+    "Server": "Werkzeug/2.2.3 Python/3.12.6"
+  },
+  "method": "GET",
+  "path": "/data/tapi-common:context/tapi-connectivity:connectivity-context/",
+  "request_body": null,
+  "status": 200
+}

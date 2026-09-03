@@ -344,7 +344,7 @@ def test_missing_data_turns_every_measured_point_red_in_its_own_kind(monkeypatch
     assert sum(p.kind == "sanity" for p in failed.values()) == 3
     assert all("no measurement" in p.detail or "missing" in p.detail for p in failed.values())
     assert not any("raised" in p.detail for p in failed.values())
-    assert len(points) == 40
+    assert len(points) == 57
 
 
 def test_read_the_last_fec_change_instead_of_the_first(monkeypatch):
@@ -542,3 +542,266 @@ def test_the_registry_cannot_see_a_deleted_integrity_check_while_the_files_are_i
     """
     patch_everywhere(monkeypatch, "verify", lambda data_dir, run=None: ())
     assert red_set() == set()
+
+
+# ---------------------------------------------------------------------------
+# The TAPI binding. Every red set below was measured with the mutation applied,
+# not predicted from the point names, and each is asserted exactly: a superset
+# would mean the mutation was blunter than its docstring says.
+# ---------------------------------------------------------------------------
+
+import json  # noqa: E402
+import shutil  # noqa: E402
+
+import ocintent.adapters.tapi as tapi_mod  # noqa: E402
+
+TAPI_POINTS = {p.__name__[len("point_"):].replace("_", "-") for p in registry.TAPI_REGISTRY}
+
+
+def _rewrite_plans(monkeypatch, rewrite):
+    """Have every plan the registry compiles pass through ``rewrite`` first."""
+    real = tapi_mod.compile_plan
+
+    def mutated(plan, **kw):
+        return rewrite(real(plan, **kw))
+
+    patch_everywhere(monkeypatch, "compile_plan", mutated)
+
+
+def _with_calls(tp, calls):
+    return tapi_mod.TapiPlan(tp.plan, tp.profile, tp.service_uuid, tuple(calls),
+                             tp.unmapped, tp.refused, tp.notes)
+
+
+def _recall(c, **over):
+    fields = dict(method=c.method, path=c.path, operation=c.operation, purpose=c.purpose,
+                  citation=c.citation, body=c.body, expect_status=c.expect_status,
+                  expect_fields=c.expect_fields, expect_headers=c.expect_headers,
+                  destructive=c.destructive)
+    fields.update(over)
+    return tapi_mod.Call(**fields)
+
+
+def test_tapi_drop_the_module_prefix_from_the_root_key(monkeypatch):
+    """The POST root key loses ``tapi-connectivity:`` (TR-547 2.6.1, RFC 7951 section 4).
+
+    Three points go red: the root-key point, and both recorded-reply points,
+    because the recorded bodies were sent under the qualified key and the
+    adapter now claims to send something else.
+    """
+    patch_everywhere(monkeypatch, "ROOT_KEY", "connectivity-service")
+    assert red_set() == {
+        "tapi-the-json-root-key-is-module-qualified-and-the-children-are-not",
+        "tapi-the-recorded-mock-departs-from-tr-547-in-exactly-the-listed-places",
+        "tapi-the-recorded-read-back-echoes-every-attribute-the-create-body-sent",
+    }
+
+
+def test_tapi_nest_the_constraints_under_a_2_0_era_wrapper(monkeypatch):
+    """The constraint leaves move under ``connectivity-constraint``, the 2.0 client shape.
+
+    The vendored 2.1.5 tree has no such child of connectivity-service, so the
+    tree point goes red; the capacity and mandatory-attribute points follow
+    because ``requested-capacity`` and ``service-layer`` are no longer at the
+    top level where Table 23 puts them.
+    """
+    real = tapi_mod.connectivity_service_body
+
+    def wrapped(intent, profile, sips, *, now_s):
+        body = real(intent, profile, sips, now_s=now_s)
+        moved = {k: body.pop(k) for k in ("service-layer", "service-type", "requested-capacity",
+                                          "connectivity-direction", "schedule") if k in body}
+        body["connectivity-constraint"] = moved
+        return body
+
+    patch_everywhere(monkeypatch, "connectivity_service_body", wrapped)
+    assert red_set() == {
+        "tapi-every-key-in-the-create-body-is-a-child-of-connectivity-service-in-the-2-1-5-tree",
+        "tapi-photonic-capacity-is-a-slot-width-in-ghz-and-the-unit-is-in-the-yang-enum",
+        "tapi-schedule-times-follow-the-layout-the-date-and-time-typedef-describes",
+        "tapi-the-create-body-carries-every-client-mandatory-attribute-of-tables-23-and-24",
+    }
+
+
+def test_tapi_drop_the_service_name(monkeypatch):
+    """The SERVICE_NAME entry (Table 23, RW M) is left out of the create body."""
+    real = tapi_mod.connectivity_service_body
+
+    def nameless(intent, profile, sips, *, now_s):
+        body = real(intent, profile, sips, now_s=now_s)
+        body.pop("name")
+        return body
+
+    patch_everywhere(monkeypatch, "connectivity_service_body", nameless)
+    assert red_set() == {
+        "tapi-the-create-body-carries-every-client-mandatory-attribute-of-tables-23-and-24",
+    }
+
+
+def test_tapi_put_the_delete_first(monkeypatch):
+    """A failover tears the old service down before the replacement is verified."""
+    _rewrite_plans(monkeypatch, lambda tp: _with_calls(
+        tp, [c for c in tp.calls if c.destructive] + [c for c in tp.calls if not c.destructive]))
+    assert red_set() == {"tapi-a-failover-has-exactly-one-destructive-call-and-it-is-last"}
+
+
+def test_tapi_patch_instead_of_put(monkeypatch):
+    """The hold extension is sent as PATCH, which Table 5 leaves unspecified on the service.
+
+    Two points: the hold point, which requires a PUT, and the Table 5 point,
+    because PATCH on the service is a struck-through operation.
+    """
+    _rewrite_plans(monkeypatch, lambda tp: _with_calls(
+        tp, [_recall(c, method="PATCH") if c.method == "PUT" else c for c in tp.calls]))
+    assert red_set() == {
+        "tapi-a-hold-extension-is-a-put-of-the-whole-object-and-a-locked-service-is-refused",
+        "tapi-every-emitted-call-is-a-table-5-path-with-a-standing-method",
+    }
+
+
+def test_tapi_ask_for_gigabits_at_the_photonic_layer(monkeypatch):
+    """Requested capacity at PHOTONIC_MEDIA is sent in GBPS instead of GHz (Table 23)."""
+    patch_everywhere(monkeypatch, "CAPACITY_UNIT_BY_LAYER", {"PHOTONIC_MEDIA": "GBPS", "DSR": "GBPS"})
+    assert red_set() == {"tapi-photonic-capacity-is-a-slot-width-in-ghz-and-the-unit-is-in-the-yang-enum"}
+
+
+def test_tapi_guess_a_sip_for_an_unknown_endpoint(monkeypatch):
+    """An endpoint missing from the table gets a SIP derived from its port name."""
+    real = tapi_mod.SipTable.lookup
+
+    def guessing(self, endpoint):
+        found = real(self, endpoint)
+        if found is None:
+            return tapi_mod.Sip(f"{endpoint.hall_id}-{endpoint.port}",
+                                "tapi-photonic-media:PHOTONIC_LAYER_QUALIFIER_NMC", direction="OUTPUT")
+        return found
+
+    monkeypatch.setattr(tapi_mod.SipTable, "lookup", guessing)
+    assert red_set() == {"tapi-an-unknown-endpoint-refuses-with-no-calls-at-all"}
+
+
+def test_tapi_let_any_two_directions_form_a_service(monkeypatch):
+    """Two INPUT points are declared a UNIDIRECTIONAL service instead of refused."""
+    patch_everywhere(monkeypatch, "connectivity_direction", lambda a, z: "UNIDIRECTIONAL")
+    assert red_set() == {"tapi-an-unknown-endpoint-refuses-with-no-calls-at-all"}
+
+
+def test_tapi_accept_whatever_status_the_server_returns(monkeypatch):
+    """The reply expectations widen to every status the mock ever returned.
+
+    Only the departure list notices: the mock's 204s now count as agreement,
+    so the pinned list is no longer what the check finds.
+    """
+    patch_everywhere(monkeypatch, "expected_reply", lambda m, t, e: ((200, 201, 204, 404), ()))
+    assert red_set() == {"tapi-the-recorded-mock-departs-from-tr-547-in-exactly-the-listed-places"}
+
+
+def test_tapi_tamper_with_a_recorded_reply(monkeypatch, tmp_path):
+    """One recorded file is edited to say the mock answered 201 with a Location header.
+
+    The manifest point catches the digest; the two points that read the
+    recordings refuse a file whose digest has moved, and go red rather than
+    reading it.
+    """
+    copy = tmp_path / "tapi"
+    shutil.copytree(registry.TAPI_DATA, copy)
+    p = copy / "recorded" / "05-post-connectivity-context-cs1.json"
+    rec = json.loads(p.read_text())
+    rec["status"] = 201
+    rec["headers"]["Location"] = "/restconf/data/tapi-common:context/tapi-connectivity:connectivity-context/connectivity-service=x"
+    p.write_text(json.dumps(rec, indent=2, sort_keys=True) + "\n")
+    monkeypatch.setattr(registry, "TAPI_DATA", copy)
+    assert red_set() == {
+        "tapi-every-vendored-file-matches-its-manifest",
+        "tapi-the-recorded-mock-departs-from-tr-547-in-exactly-the-listed-places",
+        "tapi-the-recorded-read-back-echoes-every-attribute-the-create-body-sent",
+    }
+
+
+def test_tapi_emit_the_uuid_in_upper_case(monkeypatch):
+    """The service uuid is emitted upper-case, against the typedef's canonical form.
+
+    The uuid point reads the pattern from the vendored YANG; the delete point
+    goes with it because the DELETE path no longer names the service the
+    lowercase derivation gives.
+    """
+    real = tapi_mod.service_uuid
+    patch_everywhere(monkeypatch, "service_uuid", lambda cid: real(cid).upper())
+    assert red_set() == {
+        "tapi-a-delete-names-the-service-by-uuid-and-expects-204",
+        "tapi-a-hold-extension-is-a-put-of-the-whole-object-and-a-locked-service-is-refused",
+        "tapi-the-service-uuid-is-rfc-4122-lowercase-as-the-yang-description-and-table-23-say",
+    }
+
+
+def test_tapi_stop_expecting_the_location_header(monkeypatch):
+    """The create no longer requires the Location header UC 1.0 makes a MUST.
+
+    Measured before the Location point existed, this mutation reddened
+    nothing: the registry could not see a create that accepted a reply with
+    no address for the new service. The calibrated point was added for it.
+    """
+    _rewrite_plans(monkeypatch, lambda tp: _with_calls(
+        tp, [_recall(c, expect_headers=()) if c.method == "POST" else c for c in tp.calls]))
+    assert red_set() == {"tapi-the-create-expects-a-location-header-as-uc-1-0-requires"}
+
+
+@pytest.mark.parametrize("attr,path,expect", [
+    ("TAPI_DATA", "/no/such/directory", {
+        "calibrated": {
+            "tapi-every-key-in-the-create-body-is-a-child-of-connectivity-service-in-the-2-1-5-tree",
+            "tapi-photonic-capacity-is-a-slot-width-in-ghz-and-the-unit-is-in-the-yang-enum",
+            "tapi-schedule-times-follow-the-layout-the-date-and-time-typedef-describes",
+            "tapi-the-service-uuid-is-rfc-4122-lowercase-as-the-yang-description-and-table-23-say",
+        },
+        "emergent": set(),
+        "sanity": {
+            "tapi-every-vendored-file-matches-its-manifest",
+            "tapi-the-recorded-mock-departs-from-tr-547-in-exactly-the-listed-places",
+            "tapi-the-recorded-read-back-echoes-every-attribute-the-create-body-sent",
+        },
+    }),
+    ("TAPI_SIP_TABLE", "/no/such/table.json", {
+        "calibrated": {
+            "tapi-a-delete-names-the-service-by-uuid-and-expects-204",
+            "tapi-a-hold-extension-is-a-put-of-the-whole-object-and-a-locked-service-is-refused",
+            "tapi-every-emitted-call-is-a-table-5-path-with-a-standing-method",
+            "tapi-every-key-in-the-create-body-is-a-child-of-connectivity-service-in-the-2-1-5-tree",
+            "tapi-photonic-capacity-is-a-slot-width-in-ghz-and-the-unit-is-in-the-yang-enum",
+            "tapi-schedule-times-follow-the-layout-the-date-and-time-typedef-describes",
+            "tapi-the-create-body-carries-every-client-mandatory-attribute-of-tables-23-and-24",
+            "tapi-the-create-expects-a-location-header-as-uc-1-0-requires",
+            "tapi-the-json-root-key-is-module-qualified-and-the-children-are-not",
+            "tapi-the-service-uuid-is-rfc-4122-lowercase-as-the-yang-description-and-table-23-say",
+        },
+        "emergent": {
+            "tapi-a-failover-has-exactly-one-destructive-call-and-it-is-last",
+            "tapi-a-service-with-no-slot-width-omits-requested-capacity",
+            "tapi-an-unknown-endpoint-refuses-with-no-calls-at-all",
+            "tapi-the-same-intent-compiles-to-the-same-bytes",
+        },
+        "sanity": {
+            "tapi-the-recorded-mock-departs-from-tr-547-in-exactly-the-listed-places",
+        },
+    }),
+])
+def test_tapi_lose_a_file_and_every_point_that_reads_it_fails_in_its_own_kind(monkeypatch, attr, path, expect):
+    """A missing file is red in the kind the point declares, never relabelled as sanity.
+
+    Adversarial QA found the first cut relabelling every raising point as
+    sanity, so deleting one YANG file moved the kind counts from 17/21/18 to
+    15/21/20 and the summary line lied about what had been calibrated.
+    Measured now: without ``data/tapi`` seven points raise (four calibrated,
+    three sanity); without the SIP table fifteen (ten, four, one). The kind
+    counts do not move either way, and every red point says it raised.
+    """
+    from collections import Counter
+    from pathlib import Path
+
+    patch_everywhere(monkeypatch, attr, Path(path))
+    points = registry.run_registry()
+    red = [p for p in points if not p.passed]
+    assert {k: {p.name for p in red if p.kind == k} for k in ("calibrated", "emergent", "sanity")} == expect
+    assert all("raised FileNotFoundError" in p.detail for p in red)
+    assert Counter(p.kind for p in points) == {"calibrated": 18, "emergent": 21, "sanity": 18}
+    assert len(points) == 57

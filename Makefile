@@ -9,7 +9,7 @@ help:
 	@echo "make test        run the test suite, including the mutation tests"
 	@echo "make validate    the validation registry and the list of what it declines"
 	@echo "make examples    run every example input through the CLI"
-	@echo "make experiments the four figures the README quotes"
+	@echo "make experiments the four figures the README quotes, and the mock's departure table"
 	@echo "make smoke-test  tests, registry and examples (<1 min)"
 	@echo "make clean       remove build artifacts"
 
@@ -35,6 +35,7 @@ experiments: data
 	PYTHONPATH=src $(PY) experiments/checkpoint_crossover.py
 	PYTHONPATH=src $(PY) experiments/stranded_ports.py
 	PYTHONPATH=src $(PY) experiments/measured_lead_time.py
+	PYTHONPATH=src $(PY) experiments/tapi_departures.py
 
 smoke-test: test validate examples
 	@echo "smoke test complete"

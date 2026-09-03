@@ -1,0 +1,75 @@
+{
+  "body": null,
+  "headers": {
+    "Connection": "close",
+    "Content-Type": "application/json",
+    "Date": "Thu, 03 Sep 2026 20:28:35 GMT",
+    "Server": "Werkzeug/2.2.3 Python/3.12.6"
+  },
+  "method": "POST",
+  "path": "/data/tapi-common:context/tapi-connectivity:connectivity-context/",
+  "request_body": {
+    "tapi-connectivity:connectivity-service": [
+      {
+        "administrative-state": "UNLOCKED",
+        "connectivity-direction": "UNIDIRECTIONAL",
+        "end-point": [
+          {
+            "administrative-state": "UNLOCKED",
+            "direction": "INPUT",
+            "layer-protocol-name": "PHOTONIC_MEDIA",
+            "layer-protocol-qualifier": "tapi-photonic-media:PHOTONIC_LAYER_QUALIFIER_NMC",
+            "local-id": "csep-1",
+            "name": [
+              {
+                "value": "hall-a:ocs-1/4",
+                "value-name": "CSEP_NAME"
+              }
+            ],
+            "role": "SYMMETRIC",
+            "service-interface-point": {
+              "service-interface-point-uuid": "node-1-port-13-input"
+            }
+          },
+          {
+            "administrative-state": "UNLOCKED",
+            "direction": "OUTPUT",
+            "layer-protocol-name": "PHOTONIC_MEDIA",
+            "layer-protocol-qualifier": "tapi-photonic-media:PHOTONIC_LAYER_QUALIFIER_NMC",
+            "local-id": "csep-2",
+            "name": [
+              {
+                "value": "hall-b:ocs-3/9",
+                "value-name": "CSEP_NAME"
+              }
+            ],
+            "role": "SYMMETRIC",
+            "service-interface-point": {
+              "service-interface-point-uuid": "node-2-port-14-output"
+            }
+          }
+        ],
+        "name": [
+          {
+            "value": "stitch-ab-1",
+            "value-name": "SERVICE_NAME"
+          }
+        ],
+        "requested-capacity": {
+          "total-size": {
+            "unit": "GHz",
+            "value": "50"
+          }
+        },
+        "schedule": {
+          "end-time": "20260903150000.0Z",
+          "start-time": "20260903090000.0Z"
+        },
+        "service-layer": "PHOTONIC_MEDIA",
+        "service-type": "POINT_TO_POINT_CONNECTIVITY",
+        "uuid": "9a1f6b2e-6c1a-5c0b-8e5d-3f1c2a7b9d10"
+      }
+    ]
+  },
+  "status": 204
+}

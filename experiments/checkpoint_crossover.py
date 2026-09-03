@@ -47,7 +47,7 @@ def main() -> int:
             mark = "*" if strategy is best.strategy else " "
             durable = "" if t.survives_hall_loss else " (loses hall)"
             cells.append(f"{t.total_fraction * 100:>19.2f}{mark}{durable[:1]}")
-        print(f"{int(gbps):>7}G " + " ".join(cells))
+        print((f"{int(gbps):>7}G " + " ".join(cells)).rstrip())
     print()
     print("* cheapest strategy that survives losing the hall it wrote in.")
     print("write-local is never marked: it does not survive, at any width.")

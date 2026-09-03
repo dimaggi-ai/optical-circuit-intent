@@ -1,18 +1,21 @@
 # Status
 
-**Version 1.1.0, 2026-09-03.** Complete and reproducible as a model, and read
-against one measured link: a laboratory testbed, not a plant.
+**Version 1.2.0, 2026-09-03.** Complete and reproducible as a model, read
+against one measured link — a laboratory testbed, not a plant — and bound
+to one documented controller interface, whose only replies on file are a
+mock's.
 
 ## What is done
 
 | | |
 | --- | --- |
-| Tests | 174 pass, including 27 mutation tests |
-| Validation registry | 40 points: 8 calibrated, 17 emergent, 15 sanity |
-| Declared limitations | 13, printed before the results on every run |
-| Examples | 21, each asserting its documented exit code |
-| Experiments | 4, each failing loudly if its headline stops holding |
+| Tests | 276 pass, including 41 mutation cases |
+| Validation registry | 57 points: 18 calibrated, 21 emergent, 18 sanity |
+| Declared limitations | 19, printed before the results on every run |
+| Examples | 29, each asserting its documented exit code |
+| Experiments | 5, each failing loudly if its headline stops holding |
 | Measured data | 15 HEDGE testbed files, fetched by `make data` and SHA-pinned |
+| Controller binding | TAPI 2.1.5 data tree under TR-547 v1.2, compiled and handed back; 14 replies of one mock recorded, no controller called |
 | Dependencies | none outside the standard library |
 
 ## What would change the findings
@@ -40,6 +43,12 @@ laboratory could not give, and a plant could:
   outside the authors' windows the same files already hold one disturbance
   in which the link went dark more than a poll before the last alarm sample.
 
+**A conforming TAPI controller.** The binding's replies on file are a
+hackfest mock's, and the departure experiment prints the ten places they
+contradict TR-547 v1.2. One run of the same fourteen requests against a
+controller that claims conformance would either shrink that list to nothing
+or move the profile, and `data/tapi/record_replies.py` is written for it.
+
 **A second calibration anchor that is not the erfc relation.** Both error-rate
 anchors pin one relation. The six measured anchors pin the HEDGE paper's
 reading of its own raw files, which makes the parsing trustworthy and is not
@@ -55,6 +64,9 @@ more than five more points on the same curve.
 - No expected-cost netting of durability risk (D5).
 - No wavelength-level grooming in the radix model (ASSUMPTIONS A7).
 - No vendored copy of the measured data, and no skip when it is absent (D13).
+- No call to a controller: the TAPI binding compiles and hands back, one
+  profile ships, and a hold extension needs the caller's copy of the service
+  object (D16, D17, D18).
 
 ## Where it sits in the series
 

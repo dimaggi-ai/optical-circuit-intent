@@ -1,0 +1,23 @@
+{
+  "body": {
+    "administrative-state": "UNLOCKED",
+    "direction": "INPUT",
+    "layer-protocol-name": "PHOTONIC_MEDIA",
+    "operational-state": "ENABLED",
+    "supported-layer-protocol-qualifier": [
+      "tapi-photonic-media:PHOTONIC_LAYER_QUALIFIER_NMC"
+    ],
+    "uuid": "node-1-port-13-input"
+  },
+  "headers": {
+    "Connection": "close",
+    "Content-Length": "278",
+    "Content-Type": "application/yang-data+json",
+    "Date": "Thu, 03 Sep 2026 20:28:35 GMT",
+    "Server": "Werkzeug/2.2.3 Python/3.12.6"
+  },
+  "method": "GET",
+  "path": "/data/tapi-common:context/service-interface-point=node-1-port-13-input/",
+  "request_body": null,
+  "status": 200
+}

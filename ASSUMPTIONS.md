@@ -113,3 +113,20 @@ Nothing measured there is assumed to hold on another plant.
 *To stop assuming:* the same alarm-to-outage measurement on a production
 aggregated link with synchronised clocks, a documented transponder type, and
 a collective rather than a probe on the far side of it.
+
+## A13 — A hackfest mock's context stands in for a plant's, and the example SIP table is illustrative
+
+The only server the TAPI calls have been run through is a mock generated
+from the 2.1.3 OpenAPI, run with the context file it ships (SOURCES.md S9).
+Its service interface points are that file's, and the example table under
+`examples/tapi-sip-table.json` names its SIPs after the ports they map
+(`node-1-port-13-input`) so the renders can be read. That is a choice for
+the examples, not a rule: on a plant the uuids are whatever the controller
+reports, and the table is written by the plant owner, never derived. That a
+photonic-layer point-to-point service with a media-channel qualifier and a
+slot width is the right shape for a stitched circuit is this repository's
+reading of the agreement's photonic use cases, and a plant may well want a
+DSR service over it instead; the profile takes the layer as an argument.
+
+*To stop assuming:* a SIP table exported from a real controller's context,
+and one plan run against that controller.

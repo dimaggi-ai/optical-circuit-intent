@@ -1,0 +1,11 @@
+{
+  "verb": "request",
+  "circuit_id": "stitch-12-1",
+  "endpoints": [
+    {"hall_id": "node-1", "port": "port-13-input"},
+    {"hall_id": "node-2", "port": "port-14-output"}
+  ],
+  "hold_s": 21600,
+  "min_bw_gbps": 800.0,
+  "job_id": "pretrain-7"
+}

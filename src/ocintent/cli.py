@@ -17,11 +17,14 @@ from __future__ import annotations
 import argparse
 import dataclasses
 import json
+import math
 import sys
+import time
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Sequence
 
 from . import __version__, hedge
+from .adapters import tapi
 from .checkpoint import CheckpointPlan, Strategy, cheapest_durable
 from .checkpoint import compare as compare_strategies
 from .drift import DEFAULT_TARGET_BER, DeclaredCircuit, DriftVerdict, MeasuredCircuit, forecast
@@ -321,6 +324,60 @@ def cmd_hedge(args: argparse.Namespace) -> int:
     return OK
 
 
+def _parse_now(text: Optional[str]) -> float:
+    """``--now``: RFC 3339 UTC (``2026-09-01T00:00:00Z``) or epoch seconds.
+
+    Unset means the clock, and the plan then differs run to run; the examples
+    all pass it, so their bytes are pinned.
+    """
+    if text is None:
+        return time.time()
+    try:
+        epoch = float(text)
+    except ValueError:
+        epoch = None
+    if epoch is not None:
+        if not math.isfinite(epoch) or epoch < 0:
+            raise ValueError("--now as epoch seconds must be finite and not before 1970")
+        return epoch
+    from datetime import datetime, timezone
+    try:
+        return datetime.strptime(text, "%Y-%m-%dT%H:%M:%SZ").replace(tzinfo=timezone.utc).timestamp()
+    except ValueError as exc:
+        raise ValueError(f"--now must be RFC 3339 UTC like 2026-09-01T00:00:00Z or epoch seconds: {exc}")
+
+
+def cmd_tapi(args: argparse.Namespace) -> int:
+    """Compile an intent to the TAPI calls a TR-547 controller documents. Nothing is sent."""
+    try:
+        intent = Intent.from_dict(_load(args.intent))
+        table = tapi.SipTable.from_json(args.sip_table)
+        profile = tapi.Profile(
+            layer=args.layer, slot_width_ghz=args.slot_width_ghz, restconf_root=args.restconf_root,
+        )
+        now_s = _parse_now(args.now)
+        current = _load(args.current_service) if args.current_service else None
+        boundary = Boundary(args.boundary) if args.boundary else None
+        plan = tapi.compile_intent_to_tapi(
+            intent, profile=profile, sip_table=table, now_s=now_s,
+            current_service=current, boundary=boundary,
+        )
+    except (OSError, json.JSONDecodeError, KeyError, ValueError, TypeError, OverflowError,
+            tapi.TapiAdapterError) as exc:
+        print(f"cannot read the inputs: {exc}", file=sys.stderr)
+        return UNREADABLE
+    if args.json:
+        print(json.dumps(plan.to_dict(), indent=2, sort_keys=True))
+    else:
+        print(plan.render())
+        for c in plan.calls:
+            if c.body is not None:
+                print()
+                print(f"# body of {c.method} {c.path}")
+                print(json.dumps(c.body, indent=2))
+    return REFUSED if plan.refused else OK
+
+
 def cmd_ledger(args: argparse.Namespace) -> int:
     try:
         with open(args.ledger) as fh:
@@ -445,6 +502,24 @@ def build_parser() -> argparse.ArgumentParser:
                    help="one run instead of all three")
     c.add_argument("--json", action="store_true")
     c.set_defaults(func=cmd_hedge)
+
+    c = sub.add_parser("tapi", help="the plan as TAPI 2.1.5 / TR-547 v1.2 RESTCONF calls, not sent")
+    c.add_argument("intent", help="path to an intent JSON, or - for stdin")
+    c.add_argument("--sip-table", required=True,
+                   help="JSON mapping hall:port to the plant's service interface points "
+                        "(examples/tapi-sip-table.json is the mock's)")
+    c.add_argument("--layer", choices=sorted(tapi.CAPACITY_UNIT_BY_LAYER), default="PHOTONIC_MEDIA")
+    c.add_argument("--slot-width-ghz", type=int, default=None,
+                   help="requested-capacity at the photonic layer; omitted means unconstrained (UC 1d)")
+    c.add_argument("--restconf-root", default=tapi.DEFAULT_RESTCONF_ROOT)
+    c.add_argument("--now", default=None,
+                   help="RFC 3339 UTC or epoch seconds for the schedule, which the body carries in "
+                        "tapi-common's date-and-time layout; default is the clock")
+    c.add_argument("--current-service", default=None,
+                   help="a GET reply for the service; needed for hold-until to emit its PUT")
+    c.add_argument("--boundary", choices=[b.value for b in Boundary])
+    c.add_argument("--json", action="store_true")
+    c.set_defaults(func=cmd_tapi)
 
     c = sub.add_parser("ledger", help="the capacity-debt report")
     c.add_argument("ledger", help="path to a ledger JSON")

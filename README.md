@@ -12,12 +12,18 @@ It is a companion to [span-contract](https://github.com/dimaggi-ai/span-contract
 which decides whether a job may span at all. This one is about the circuit
 underneath that decision.
 
+Since 1.2.0 the generic plan also compiles to one named controller
+interface, the TAPI 2.1.5 data tree under the TR-547 v1.2 agreement, and
+is handed back call by call with the reply each one expects. None is sent,
+and no controller has been called ([below](#binding-to-a-named-plant)).
+
 ```
 pip install optical-circuit-intent
 ocintent ladder            # the retune legality ladder, at the reference rhythm
 ocintent checkpoint        # what each checkpoint strategy actually costs
 ocintent disagree          # where the two scheduling objectives part company
 ocintent hedge             # the one measured link (from a clone, after `make data`)
+ocintent tapi i.json --sip-table s.json   # the intent as one controller's calls, never sent
 ```
 
 ---
@@ -77,6 +83,7 @@ cheapest strategy that survives losing a hall is not fixed:
 
 ```
   stitch           write-local       async-replicate        sync-replicate  stage-through-object
+------------------------------------------------------------------------------------------------
     100G               10.45                 22.01*               35.90                35.90
     200G               10.45                 16.93*               21.88                21.88
     400G               10.45                 13.69                12.28*               12.28
@@ -232,6 +239,16 @@ by age
   30-90d          2,945    0.5%
   90d+          560,333   90.3%
 
+by cause
+  drift                         560,333
+  checkpoint-contention          33,974
+  stranded-ports                 23,040
+  retune-stall                    2,945
+
+by hall
+  hall-a                        583,373
+  hall-b                         36,919
+
 fix these first (by daily rate, with payback)
   drift-stitch-ab-1       5,898/day     95 d old  pays back in 2.1 d
   ckpt-b                  4,247/day      8 d old  pays back in 1.9 d
@@ -243,6 +260,104 @@ Ranked by *daily rate*, not accrued total: a large old entry that has stopped
 bleeding is a worse use of a maintenance window than a small new one that has
 not. The ledger quotes no currency — that needs a rate only the plant owner has,
 and one invented here would travel downstream looking like a measurement.
+
+---
+
+## Binding to a named plant
+
+The six models agree on a generic plan: a verb, two endpoints, a hold, and
+the operations that carry them out. `ocintent.adapters.tapi` writes that
+plan as the calls one documented controller interface takes — the ONF
+Transport API at its 2.1.5 data tree (SOURCES.md S7), under the TR-547 v1.2
+reference implementation agreement (S8) — and hands them back with the
+status, headers and fields each reply must carry. Nothing is sent. The plant
+owner's table from `hall:port` to service interface point is an input, and
+an endpoint the table does not know is refused with no call at all; the
+adapter never guesses a SIP.
+
+```
+ocintent tapi examples/tapi-request.json --sip-table examples/tapi-sip-table.json \
+    --slot-width-ghz 50 --now 2026-09-01T00:00:00Z
+```
+
+```
+# request stitch-12-1 -> tapi-2.1.5/tr-547-v1.2  service 68e1972c-168f-5305-9db6-0fb5ac76cc58
+1. [reserve_ports] GET /restconf/data/tapi-common:context/service-interface-point=node-1-port-13-input  expect 200  and administrative-state=UNLOCKED, operational-state=ENABLED
+2. [reserve_ports] GET /restconf/data/tapi-common:context/service-interface-point=node-2-port-14-output  expect 200  and administrative-state=UNLOCKED, operational-state=ENABLED
+3. [cross_connect] POST /restconf/data/tapi-common:context/tapi-connectivity:connectivity-context  expect 200/201  with Location
+4. [verify_path] GET /restconf/data/tapi-common:context/tapi-connectivity:connectivity-context/connectivity-service=68e1972c-168f-5305-9db6-0fb5ac76cc58  expect 200  and operational-state=ENABLED, lifecycle-state=INSTALLED, connection=non-empty
+5. [verify_path] GET /restconf/data/tapi-common:context/tapi-connectivity:connectivity-context/connection={connection-uuid}  expect 200
+# unmapped reserve_ports: a read, not a reservation: TAPI 2.1 has no primitive that holds a service interface point for a caller (TR-547 Table 5 notes no use case modifies a SIP), so two requests can pass this read and race at the POST
+# unmapped verify_path.expect_min_bw_gbps: 800.0 Gbit/s cannot be checked through TAPI 2.1 at PHOTONIC_MEDIA: requested capacity there is spectrum in GHz (TR-547 Table 23) and no modulation model here converts one to the other
+# note: verify_path is not optional. A cross-connect that returns success and a path that carries traffic are different claims, and the gap between them is what the drift ledger measures.
+```
+
+The body of the POST follows: one `tapi-connectivity:connectivity-service`
+entry carrying every client-mandatory attribute of the agreement's Tables 23
+and 24, the two end points with the SIPs the table gave, a 50 GHz slot as
+`requested-capacity` (spectrum, because the layer is photonic; the uint64
+value goes as the JSON string RFC 7951 prescribes, DECISIONS.md D20) and
+the hold as a `schedule` in the layout the `date-and-time` typedef's own
+description gives, not RFC 3339 (D19). The uuid is derived from the circuit
+id, so the same intent compiles to the same bytes every time. A failover adds the only destructive
+call the binding ever emits, and it comes last, after the read that verifies
+the replacement:
+
+```
+6. [teardown] DELETE /restconf/data/tapi-common:context/tapi-connectivity:connectivity-context/connectivity-service=68e1972c-168f-5305-9db6-0fb5ac76cc58  expect 204
+# unmapped reserve_ports: a read, not a reservation: TAPI 2.1 has no primitive that holds a service interface point for a caller (TR-547 Table 5 notes no use case modifies a SIP), so two requests can pass this read and race at the POST
+# unmapped release_ports: nothing to call: the service interface points were never held, and deleting the service is what frees the plant's resources (TR-547 UC 10)
+# note: the DELETE of the replaced service is the last call and follows the read that verifies the replacement; a controller that reorders these turns a degraded circuit into no circuit
+# note: the replacement is verified before 'stitch-12-1' is torn down; the reverse order converts a degraded circuit into no circuit
+```
+
+```
+# request stitch-19-1 -> tapi-2.1.5/tr-547-v1.2  service 5c9cec46-2f81-5b4c-854f-65d1cea21a65
+# REFUSED: no SIP for endpoint node-9:port-1 in the table (examples/tapi-sip-table.json); the adapter does not guess one
+```
+
+What TAPI 2.1 cannot say, the plan says as *unmapped* rather than
+pretending: there is no reservation primitive, so `reserve_ports` is two
+reads and two callers can pass them and race at the create; a bandwidth
+floor cannot be checked at the photonic layer, where capacity is spectrum; a
+hold extension is a PUT of the whole service object under a use case the
+agreement marks draft, so it is emitted only when the caller supplies the
+object, and a LOCKED service is refused, with no call at all (DECISIONS.md
+D18).
+
+The one server the calls have been run through is a hackfest mock, not a
+controller (S9). Its fourteen replies are committed under
+`data/tapi/recorded` with their digests, and `experiments/tapi_departures.py`
+prints where they depart from the agreement:
+
+```
+recorded calls: 14; on the adapter's table: 10; matching TR-547: 3; replies with a departure: 7
+departures: 10 duplicate-accepted x1, encoding x1, no-location x2, status x6
+
+what the mock does that a TR-547 controller must not:
+  - answers a create with 204 and no Location header (UC 1.0: Location MUST; RFC 8040: 201)
+  - answers a read or delete of an unknown uuid with 204 (UC 10 and RFC 8040 4.3: 404 invalid-value)
+  - answers a PUT with 200 and the generator's stub text (UC 11a figure 6-43: 204)
+  - accepts a second create with the same uuid (RFC 8040 4.4.1: 409)
+  - echoes the uint64 capacity value as a JSON number (RFC 7951 6.1, which 2.6.1 mandates: a string)
+so a green registry says the bodies parse on a 2.1.x server, not that a controller accepts them.
+```
+
+Seventeen registry points read the binding. Ten are calibrated against the
+vendored YANG tree and the agreement's text: every emitted call is a Table 5
+path with a standing method; the create body's keys are children of
+`connectivity-service` in the 2.1.5 tree, carry the client-mandatory
+attributes of Tables 23 and 24 under a module-qualified root key, and expect
+the Location header UC 1.0 makes a MUST; the uuid is lowercase RFC 4122;
+photonic capacity is in GHz and the unit is in the YANG enumeration; the
+schedule times follow the layout the `date-and-time` typedef describes; a
+delete names the service by uuid and expects 204; a hold extension is a PUT
+of the whole object. Four are emergent: one destructive call per failover
+and it is last, an unknown endpoint refuses with no call, the same intent
+compiles to the same bytes, a service with no slot width omits the capacity
+container. Three are sanity, on the recordings and manifests, which is all a
+mock can support: a vendor's mock is not a conformance reference, and no
+point here is calibrated against one.
 
 ---
 
@@ -269,10 +384,17 @@ run. The short version:
 - **Connector contamination is invisible to the forecast.** It is an event, not a
   trend, and it is the most common cause of real insertion-loss faults. A green
   forecast is not a statement that a path is healthy.
+- **No controller has been called.** The TAPI binding compiles calls and
+  hands them back. The only replies on file are a hackfest mock's,
+  generated from the 2.1.3 OpenAPI, and the departure experiment prints the
+  ten places they contradict TR-547; a green registry says the bodies
+  parse on a 2.1.x server, not that a controller accepts them. One profile
+  ships, and TAPI 2.1 has no reservation primitive, so two callers can pass
+  the reads and race at the create.
 - **No queueing model.** Contention shares a circuit linearly between a
   replication and a collective, which is a simplification at every width quoted.
 
-Run `make validate` for the other eight.
+Run `make validate` for the other thirteen.
 
 ---
 
@@ -281,21 +403,25 @@ Run `make validate` for the other eight.
 ```
 make venv          # pinned virtual environment, Python 3.12
 make data          # fetch and SHA-verify the 15 HEDGE testbed files (not vendored)
-make test          # 174 tests, including 27 mutation tests
-make validate      # 40 registry points, and the 13 things it declines to check
-make examples      # 21 example inputs reach their documented results
-make experiments   # the four figures above
+make test          # 276 tests, including 41 mutation cases
+make validate      # 57 registry points, and the 19 things it declines to check
+make examples      # 29 example inputs reach their documented results
+make experiments   # the four figures above, and the mock's departure table
 make smoke-test    # everything except experiments, under a minute
 ```
 
 Every validation point is one of three kinds. **Calibrated** points are pinned
-to a published figure (there are eight: two on the error-rate relation, six on
-what the HEDGE paper says about its own runs). **Emergent** points are
-orderings nothing was tuned to produce (sixteen, five of them read from the
-measured link). **Sanity** points check this repository's own structure and
-are worth nothing as evidence about optical plants (fourteen) — they carry no
-citation, and the code refuses to let them carry one. A measured point whose
-files are missing fails in its own kind; it never skips.
+to a published figure or text (there are eighteen: two on the error-rate
+relation, six on what the HEDGE paper says about its own runs, ten on the
+TAPI 2.1.5 tree and the TR-547 v1.2 text). **Emergent** points are orderings
+nothing was tuned to produce (twenty-one: six read from the measured link,
+four from the compiled TAPI plans, eleven from the models). **Sanity** points
+check this repository's own structure and are worth nothing as evidence about
+optical plants (eighteen, three of them on the recorded mock) — they carry no
+citation, and the code refuses to let them carry one. A point whose files are
+missing — the measured link's, the vendored modules', the recordings' —
+fails in the kind it declares; it never skips, and a mutation test measures
+that with each file taken away.
 
 The mutation tests break real machinery and assert the *exact* set of points
 that turns red, measured rather than predicted. Three of them assert the
@@ -306,6 +432,15 @@ to "any probe quiet", because the four probes ride one link and go quiet
 within a report interval of one another; and a deleted integrity check while
 the files on disk are the pinned ones, which is what a tampered-copy unit test
 is for.
+
+Thirteen more break the binding — the module prefix dropped from the root
+key, the constraints nested the way a 2.0 client did, PATCH for PUT,
+gigabits at the photonic layer, a guessed SIP, the delete moved first, a
+tampered recording, a vendored file or the SIP table taken away — and each
+asserts its measured set. One is there because it first
+reddened nothing: a create that stopped expecting the Location header UC 1.0
+requires was invisible to the registry until a calibrated point was written
+for it.
 
 ## Install
 
@@ -320,7 +455,8 @@ No dependencies outside the standard library.
 - [`docs/the-models.md`](docs/the-models.md) — what each of the six is for
 - [`docs/integration.md`](docs/integration.md) — wiring this to a scheduler
 - [`data/hedge/README.md`](data/hedge/README.md) — the measured link's files: what they are, how they are fetched, why they are not vendored
-- [`DECISIONS.md`](DECISIONS.md) — fifteen choices, and what each cost
+- [`data/tapi/README.md`](data/tapi/README.md) — the binding's pinned specification, and the one mock's recorded replies
+- [`DECISIONS.md`](DECISIONS.md) — twenty choices, and what each cost
 - [`ASSUMPTIONS.md`](ASSUMPTIONS.md) — what is taken on faith
 - [`SOURCES.md`](SOURCES.md) — the published figures the calibrated points use
 - [`STATUS.md`](STATUS.md) — what is done, what is not, what would change it

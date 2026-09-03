@@ -30,12 +30,13 @@ jobs:
         run: python validation/validate_intent.py
       - name: Every example input reaches its documented result
         run: python examples/run_examples.py
-      - name: The four quoted figures reproduce
+      - name: The four quoted figures and the departure table reproduce
         run: |
           PYTHONPATH=src python experiments/retune_disagreement.py
           PYTHONPATH=src python experiments/checkpoint_crossover.py
           PYTHONPATH=src python experiments/stranded_ports.py
           PYTHONPATH=src python experiments/measured_lead_time.py
+          PYTHONPATH=src python experiments/tapi_departures.py
       - name: The installed console script works
         run: |
           ocintent --version
@@ -44,3 +45,5 @@ jobs:
           ocintent drift /tmp/circuit.json || test $? -eq 1
           ocintent hedge --run wdl
           ocintent hedge --data /tmp/no-such-data || test $? -eq 2
+          ocintent tapi examples/tapi-request.json --sip-table examples/tapi-sip-table.json --slot-width-ghz 50 --now 2026-09-01T00:00:00Z
+          ocintent tapi examples/tapi-request-unknown-port.json --sip-table examples/tapi-sip-table.json --now 2026-09-01T00:00:00Z || test $? -eq 1

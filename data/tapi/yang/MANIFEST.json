@@ -1,0 +1,38 @@
+{
+  "_comment": "Vendored from github.com/OpenNetworkingFoundation/TAPI (LF ONMI Transport API), tag v2.1.5, Apache-2.0 (LICENSE alongside). The .tree files are pyang renderings published in the same tag. validate_intent.py checks every file against these digests before reading it.",
+  "repository": "https://github.com/OpenNetworkingFoundation/TAPI",
+  "tag": "v2.1.5",
+  "commit": "dfe7a811e624b03b234e836f5a213d14bb600c69",
+  "path": "YANG/ (and the tree renderings the tag ships beside them)",
+  "license": "Apache-2.0",
+  "files": {
+    "LICENSE": {
+      "sha256": "c6596eb7be8581c18be736c846fb9173b69eccf6ef94c5135893ec56bd92ba08",
+      "bytes": 11358
+    },
+    "tapi-common.tree": {
+      "sha256": "40edacbfe760eac84dad37ed4acf04eddbbfb5ced8f2f072228f11281e2e885a",
+      "bytes": 8138
+    },
+    "tapi-common.yang": {
+      "sha256": "79ba6e931b624bfd74fc7acf08bb8157d93b0796af7cba11aa08f2a2cc8df77f",
+      "bytes": 33829
+    },
+    "tapi-connectivity.tree": {
+      "sha256": "1be2f248e73ae4337793f0936472040287e0eeda41b7fc6306f076d274e1b36f",
+      "bytes": 83383
+    },
+    "tapi-connectivity.yang": {
+      "sha256": "77aa1a683787964d72f4a9e9d2e20aee1fae31105041b346daee776736d37eb6",
+      "bytes": 40149
+    },
+    "tapi-photonic-media.tree": {
+      "sha256": "f88430fe6efd1438fa171ba7c0d8a2bc9b45c7165b16fba56868fb2fc4ed4d57",
+      "bytes": 43732
+    },
+    "tapi-photonic-media.yang": {
+      "sha256": "0b38c9e7865f6c44f6cf0ae729ac7e35e3ee654be827a26d4697f00764f761c3",
+      "bytes": 52260
+    }
+  }
+}

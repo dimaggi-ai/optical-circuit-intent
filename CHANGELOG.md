@@ -1,5 +1,79 @@
 # Changelog
 
+## 1.2.0 — 2026-09-03
+
+The binding to a named plant.
+
+- Added `ocintent.adapters.tapi`: compiles the generic plan to the RESTCONF
+  calls of the ONF Transport API at its 2.1.5 data tree under the TR-547
+  v1.2 reference implementation agreement (SOURCES.md S7, S8), and hands
+  them back with the status, headers and fields each reply must carry.
+  Nothing is sent. A request is two reads of the service interface points,
+  one create with the Location header UC 1.0 requires, and two reads back; a
+  failover adds one DELETE, last; a release is one DELETE; a hold extension
+  is a PUT of the whole object, emitted only with the caller's copy of the
+  service and refused, with no call, on a LOCKED one (DECISIONS.md D18). The plant owner's
+  `hall:port` to SIP table is an input, an unknown endpoint is refused with
+  no call, and what TAPI 2.1 cannot express — a reservation, a bandwidth
+  floor at the photonic layer — is returned as unmapped with the reason.
+- Vendored the three 2.1.5 YANG modules and their tree renderings
+  (Apache-2.0) and recorded fourteen replies of the TeraFlowSDN hackfest
+  mock, each directory with a manifest of digests the registry refuses to
+  read past (D16). The first profile is 2.1.5 with TR-547 v1.2, not 2.6.0,
+  whose release notes disclose an open YANG defect (D17).
+- Added seventeen registry points: ten calibrated against the vendored tree
+  and the agreement's text (Table 5 methods, the module-qualified root key,
+  the children of `connectivity-service`, the client-mandatory attributes
+  of Tables 23 and 24, the Location header, the lowercase uuid, GHz at the
+  photonic layer, the schedule in the `date-and-time` typedef's own layout,
+  the 204 on delete, the PUT on extension), four emergent
+  (one destructive call per failover and last, refusal with no call,
+  deterministic bytes, no capacity container without a slot width), three
+  sanity on the recordings (manifests, the pinned departure list, the
+  read-back echo). Six declined items cover the binding: the first says no
+  controller was called, the others what TAPI 2.1 cannot express, what this
+  release does not profile, and that the agreement calls its own status
+  codes experimental.
+- Added `experiments/tapi_departures.py`, which prints, reply by reply,
+  where the mock departs from TR-547 (ten departures in seven replies:
+  status codes, no Location header, a duplicate uuid accepted, the uint64
+  capacity value echoed as a JSON number), and the CLI
+  subcommand `ocintent tapi INTENT --sip-table TABLE [--layer] [--slot-width-ghz]
+  [--restconf-root] [--now] [--current-service] [--boundary] [--json]`
+  (exit 1 when the plan is refused, 2 when an input cannot be read).
+- Added thirteen mutation tests with measured red sets. One exists because
+  it first reddened nothing: a create that stopped expecting the Location
+  header was invisible until the calibrated point for it was written. One
+  takes the vendored YANG directory or the SIP table away and requires every
+  point that reads it to fail in the kind it declares, the kind counts
+  unmoved.
+- Schedule times are written in the layout tapi-common's own `date-and-time`
+  typedef describes (`yyyyMMddhhmmss.sZ`), not RFC 3339: the typedef is a
+  bare string, the module imports nothing, and the agreement names no layout
+  for the schedule (D19). The capacity value is the JSON string RFC 7951
+  section 6.1 makes of a uint64 and Table 23 writes (D20); the mock echoes
+  it as a number, which is the tenth departure on the printed list. The
+  mock's replies were re-recorded with both changes, and a test holds the
+  recorder's body equal to the adapter's.
+- A refused plan carries no call: the first cut handed the GET back beside
+  the refusal of a LOCKED service or of someone else's object.
+- A registry point that raises fails in the kind it declares (D12); the
+  first cut reported it as sanity, so a lost YANG file moved the kind counts.
+- The PUT of a hold also strips the read-only leaves under
+  `latency-characteristic`; a test derives the read-only set from the
+  vendored tree.
+- `ocintent tapi` exits 2 on a `--now` that is not finite or is before the
+  epoch and on a SIP table that is not an object, and names a SIP whose uuid
+  or qualifier is missing; each used to be a traceback.
+- The README's checkpoint and ledger blocks are the experiments' full output
+  again, byte for byte.
+- `MANIFEST.in` keeps `tests/` out of the sdist; they read the registry and
+  data the sdist never carried.
+- Fixed the README's kind counts for 1.1.0, which read sixteen emergent and
+  fourteen sanity where the registry printed seventeen and fifteen.
+- Counts: 276 tests (41 mutation cases), 57 registry points (18 calibrated,
+  21 emergent, 18 sanity), 19 declined, 29 examples, 5 experiments.
+
 ## 1.1.0 — 2026-09-03
 
 The one measured link.

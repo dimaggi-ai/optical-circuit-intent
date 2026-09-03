@@ -14,11 +14,13 @@ abstract: >-
   an aging schedule; and a reader for the raw files of one measured link,
   the HEDGE testbed, on which the first FEC alarm ran 88 and 39 seconds
   ahead of the outage and the outage began inside the transponder poll in
-  which the last wavelength failed.
+  which the last wavelength failed; and a binding that compiles the generic
+  plan to the TAPI 2.1.5 RESTCONF calls the TR-547 v1.2 agreement
+  documents, handed back with the reply each must receive and never sent.
 authors:
   - family-names: Nanyonga
     given-names: Margaret
-version: 1.1.0
+version: 1.2.0
 date-released: "2026-09-03"
 license: MIT
 repository-code: "https://github.com/dimaggi-ai/optical-circuit-intent"

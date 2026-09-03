@@ -1,0 +1,5 @@
+# The sdist carries the package and its documents. The tests read the
+# validation registry and the vendored data, which live in the repository,
+# not the distribution; shipping the tests without them would ship a
+# suite that cannot run.
+prune tests

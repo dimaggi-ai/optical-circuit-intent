@@ -1,0 +1,11 @@
+{
+  "verb": "failover-to",
+  "circuit_id": "stitch-13-1",
+  "endpoints": [
+    {"hall_id": "node-1", "port": "port-15-input"},
+    {"hall_id": "node-3", "port": "port-16-output"}
+  ],
+  "hold_s": 3600,
+  "replaces": "stitch-12-1",
+  "job_id": "pretrain-7"
+}

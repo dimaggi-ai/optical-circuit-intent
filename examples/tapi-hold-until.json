@@ -1,0 +1,6 @@
+{
+  "verb": "hold-until",
+  "circuit_id": "stitch-12-1",
+  "hold_s": 43200,
+  "job_id": "pretrain-7"
+}

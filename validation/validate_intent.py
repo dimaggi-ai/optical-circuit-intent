@@ -21,8 +21,11 @@ fails.
 
 from __future__ import annotations
 
+import hashlib
+import json
 import math
 import random
+import re
 import sys
 from dataclasses import dataclass
 from pathlib import Path
@@ -48,6 +51,7 @@ from ocintent.drift import (  # noqa: E402
 )
 from ocintent.drift import compare as compare_circuit  # noqa: E402
 from ocintent import hedge  # noqa: E402
+from ocintent.adapters import tapi  # noqa: E402
 from ocintent.intent import Boundary, Endpoint, Intent, Verb  # noqa: E402
 from ocintent.ledger import Cause, DebtEntry, Ledger  # noqa: E402
 from ocintent.legality import (  # noqa: E402
@@ -86,6 +90,11 @@ class Point:
                 f"{self.name}: a sanity point checks this repository's own structure "
                 "and must not cite anything; a citation on it would make an internal "
                 "consistency check look like evidence about the world"
+            )
+        if self.kind == EMERGENT and self.reference != "-":
+            raise ValueError(
+                f"{self.name}: an emergent point reports what this repository's own models "
+                "produce and must not cite anything; the sources of its inputs belong in the detail"
             )
         if self.kind == CALIBRATED and self.reference == "-":
             raise ValueError(f"{self.name}: a calibrated point must name its anchor")
@@ -151,6 +160,29 @@ DECLINED: Tuple[str, ...] = (
     "pending demand is itself a forecast, and a wrong one changes the answer.",
     "The reference rhythm is illustrative. It is not measured from a named job, "
     "and every headline figure is quoted against it.",
+    # The TAPI binding (SOURCES.md S7, S8, S9)
+    "No call in this repository has been made against a real TAPI controller. "
+    "The binding compiles an intent to the RESTCONF calls TR-547 v1.2 documents "
+    "and hands them back; the replies under data/tapi/recorded came from a "
+    "hackfest mock generated from the 2.1.3 OpenAPI, which departs from the "
+    "agreement in the places the registry pins, so a green registry says the "
+    "bodies parse on a 2.1.x server, not that a controller accepts them.",
+    "TAPI 2.1 has no reservation primitive. reserve_ports compiles to two reads "
+    "of the service interface points and release_ports to nothing, and two "
+    "callers can pass those reads and race at the POST.",
+    "A bandwidth floor cannot be checked through TAPI at the photonic layer: "
+    "requested capacity there is a slot width in GHz, and turning a bit rate "
+    "into spectrum needs a modulation model this repository does not have.",
+    "Extending a hold is a PUT of the whole service object under UC 11a, which "
+    "TR-547 v1.2 marks draft and discusses for path constraints; no use case "
+    "covers a schedule change, and the plan's note says so.",
+    "One profile ships: the 2.1.5 YANG with TR-547 v1.2. No 2.5.x or 2.6.0 "
+    "profile is built (2.6.0's own release notes disclose an open YANG defect), "
+    "and no other controller family (OpenROADM, Polatis) is bound.",
+    "TR-547 calls its own status codes experimental (section 5.2). The "
+    "expectations here cite the use case that states one, or RFC 8040 where "
+    "none does, and a controller that differs is a departure to print, not a "
+    "failure to hide.",
 )
 
 
@@ -247,8 +279,8 @@ def point_published_ocs_switching_is_below_every_disagreement_band() -> Point:
         disagreeing_at_ocs == 0 and lowest_edge > ocs_retune_s,
         f"at a {ocs_retune_s * 1000:.0f} ms retune, {disagreeing_at_ocs}/{POPULATION} "
         f"rhythms disagree; the lowest band edge over the population is "
-        f"{lowest_edge:.3f} s, {lowest_edge / ocs_retune_s:.0f}x the OCS time",
-        reference="SOURCES.md S3",
+        f"{lowest_edge:.3f} s, {lowest_edge / ocs_retune_s:.0f}x the OCS time; the retune time "
+        f"is the SOURCES.md S3 figure, an input to this comparison and not a result of it",
     )
 
 
@@ -1331,6 +1363,468 @@ def point_hedge_the_event_join_agrees_with_the_authors_index_aligned_reduction()
                  + "; ".join(parts))
 
 
+# ---------------------------------------------------------------------------
+# The TAPI binding (SOURCES.md S7, S8, S9)
+# ---------------------------------------------------------------------------
+#
+# Calibrated points here are pinned to the 2.1.5 YANG and tree files vendored
+# under data/tapi/yang and to TR-547 v1.2 pages read on the rendered PDF, not
+# on a text dump (the printed Table 5 strikes operations through, and the
+# strike does not survive extraction). The registry keeps its own
+# transcription of those pages rather than reading the adapter's, so a point
+# passes only when the two transcriptions agree with the emitted calls.
+# Sanity points cover this repository's own fixtures: the vendored files and
+# the replies recorded from a mock. A mock is not a plant, and the last three
+# points say exactly where it departs from the agreement.
+
+TAPI_DATA = Path("data/tapi")
+TAPI_SIP_TABLE = Path("examples/tapi-sip-table.json")
+TAPI_NOW_S = 1_788_220_800.0  # 2026-09-01T00:00:00Z
+
+#: TR-547 v1.2 Table 5, rendered pages 43-44, operations left standing after
+#: the strike-through: this is the registry's own reading of the pages.
+TR547_TABLE_5: Dict[str, Tuple[str, ...]] = {
+    "/data/tapi-common:context/service-interface-point={uuid}": ("GET", "PUT", "PATCH"),
+    "/data/tapi-common:context/tapi-connectivity:connectivity-context": ("POST",),
+    "/data/tapi-common:context/tapi-connectivity:connectivity-context/connectivity-service={uuid}":
+        ("GET", "PUT", "DELETE"),
+    "/data/tapi-common:context/tapi-connectivity:connectivity-context/connection={uuid}": ("GET",),
+}
+#: TR-547 v1.2 Tables 23 and 24, rendered pages 115-118: attributes marked
+#: RW and M, which the client must send. name entries name the value-name.
+TR547_CLIENT_MANDATORY_CS = ("uuid", "name:SERVICE_NAME", "service-layer", "end-point")
+TR547_CLIENT_MANDATORY_CSEP = ("local-id", "name:CSEP_NAME", "layer-protocol-name",
+                               "layer-protocol-qualifier", "service-interface-point")
+
+#: Where the recorded mock departs from TR-547 v1.2, measured once and pinned.
+#: (file, kind) pairs; the sanity point requires exact equality, so a re-recording
+#: that changes the mock's behaviour has to change this list in the same commit.
+TAPI_MOCK_DEPARTURES: Tuple[Tuple[str, str], ...] = (
+    ("03-get-sip-unknown.json", "status"),
+    ("05-post-connectivity-context-cs1.json", "status"),
+    ("05-post-connectivity-context-cs1.json", "no-location"),
+    ("06-get-connectivity-service-cs1.json", "encoding"),
+    ("08-put-connectivity-service-cs1.json", "status"),
+    ("09-post-connectivity-context-cs1-again.json", "duplicate-accepted"),
+    ("09-post-connectivity-context-cs1-again.json", "status"),
+    ("09-post-connectivity-context-cs1-again.json", "no-location"),
+    ("11-get-connectivity-service-cs1-after-delete.json", "status"),
+    ("12-delete-connectivity-service-unknown.json", "status"),
+)
+
+
+def _declares(kind: str, reference: str = "-") -> Callable[[Callable[[], Point]], Callable[[], Point]]:
+    """Pin the kind and anchor a point reports in, before it runs.
+
+    A point that raises fails in the kind it declares (DECISIONS.md D12), so a
+    missing or altered file turns a calibrated point red as calibrated and the
+    kind counts do not drift with the presence of a directory.
+    tests/test_tapi.py checks that each declaration matches the Point the
+    function builds.
+    """
+    def wrap(fn: Callable[[], Point]) -> Callable[[], Point]:
+        fn.kind = kind  # type: ignore[attr-defined]
+        fn.reference = reference  # type: ignore[attr-defined]
+        return fn
+    return wrap
+
+
+def _tapi_table() -> tapi.SipTable:
+    return tapi.SipTable.from_json(TAPI_SIP_TABLE)
+
+
+def _tapi_request() -> Intent:
+    return Intent(
+        Verb.REQUEST, "stitch-12-1",
+        (Endpoint("node-1", "port-13-input"), Endpoint("node-2", "port-14-output")),
+        hold_s=6 * 3600.0, min_bw_gbps=800.0, job_id="pretrain-7",
+    )
+
+
+def _tapi_plans() -> List[tapi.TapiPlan]:
+    table = _tapi_table()
+    profile = tapi.Profile(slot_width_ghz=50)
+    req = tapi.compile_intent_to_tapi(_tapi_request(), profile=profile, sip_table=table, now_s=TAPI_NOW_S)
+    current = dict(req.calls[2].body[tapi.ROOT_KEY][0])
+    current.update({"operational-state": "ENABLED", "lifecycle-state": "INSTALLED",
+                    "connection": [{"connection-uuid": current["uuid"]}]})
+    fo = Intent(Verb.FAILOVER_TO, "stitch-13-1",
+                (Endpoint("node-1", "port-15-input"), Endpoint("node-3", "port-16-output")),
+                hold_s=3600.0, replaces="stitch-12-1")
+    return [
+        req,
+        tapi.compile_intent_to_tapi(fo, profile=profile, sip_table=table, now_s=TAPI_NOW_S),
+        tapi.compile_intent_to_tapi(Intent(Verb.RELEASE, "stitch-12-1"), profile=profile,
+                                    sip_table=table, now_s=TAPI_NOW_S),
+        tapi.compile_intent_to_tapi(Intent(Verb.HOLD_UNTIL, "stitch-12-1", hold_s=12 * 3600.0),
+                                    profile=profile, sip_table=table, now_s=TAPI_NOW_S,
+                                    current_service=current),
+    ]
+
+
+def _tapi_create_body() -> Dict[str, object]:
+    req = _tapi_plans()[0]
+    return req.calls[2].body[tapi.ROOT_KEY][0]
+
+
+def _tapi_manifest_mismatches(directory: Path) -> List[str]:
+    man = json.loads((directory / "MANIFEST.json").read_text())
+    bad = []
+    for name, entry in man["files"].items():
+        f = directory / name
+        if not f.exists():
+            bad.append(f"{name}: missing")
+            continue
+        digest = hashlib.sha256(f.read_bytes()).hexdigest()
+        if digest != entry["sha256"]:
+            bad.append(f"{name}: sha256 {digest[:12]} != pinned {entry['sha256'][:12]}")
+    return bad
+
+
+def _tapi_checked_text(name: str) -> str:
+    """Read a vendored YANG or tree file, refusing one that fails its pin."""
+    bad = [b for b in _tapi_manifest_mismatches(TAPI_DATA / "yang") if b.startswith(name + ":")]
+    if bad:
+        raise RuntimeError("; ".join(bad))
+    return (TAPI_DATA / "yang" / name).read_text()
+
+
+@_declares(CALIBRATED, 'SOURCES.md S8 (TR-547 v1.2 Table 5, rendered pp. 43-44)')
+def point_tapi_every_emitted_call_is_a_table_5_path_with_a_standing_method() -> Point:
+    seen = sorted({(c.method, tapi.path_template(c.path)) for p in _tapi_plans() for c in p.calls})
+    off = [(m, t) for m, t in seen if m not in TR547_TABLE_5.get(t, ())]
+    return Point(
+        "tapi-every-emitted-call-is-a-table-5-path-with-a-standing-method", CALIBRATED,
+        not off and len(seen) >= 5,  # vacuity floor, below the 6 pairs measured: nothing emitted must not pass
+        f"{len(seen)} distinct (method, path) pairs across the four verbs; "
+        + ("all in the table" if not off else f"off the table: {off}"),
+        reference="SOURCES.md S8 (TR-547 v1.2 Table 5, rendered pp. 43-44)",
+    )
+
+
+@_declares(CALIBRATED, 'SOURCES.md S8 (TR-547 v1.2 Tables 23-24, rendered pp. 115-118)')
+def point_tapi_the_create_body_carries_every_client_mandatory_attribute_of_tables_23_and_24() -> Point:
+    body = _tapi_create_body()
+
+    def missing(obj: Dict[str, object], required: Tuple[str, ...]) -> List[str]:
+        out = []
+        for r in required:
+            if ":" in r:
+                key, vn = r.split(":")
+                if not any(n.get("value-name") == vn and n.get("value") for n in obj.get(key, [])):
+                    out.append(r)
+            elif r not in obj:
+                out.append(r)
+        return out
+
+    gaps = missing(body, TR547_CLIENT_MANDATORY_CS)
+    eps = body.get("end-point", [])
+    if len(eps) < 2:
+        gaps.append("end-point:min-elements-2")
+    for i, ep in enumerate(eps):
+        gaps += [f"end-point[{i}].{g}" for g in missing(ep, TR547_CLIENT_MANDATORY_CSEP)]
+    return Point(
+        "tapi-the-create-body-carries-every-client-mandatory-attribute-of-tables-23-and-24", CALIBRATED,
+        not gaps,
+        f"{len(TR547_CLIENT_MANDATORY_CS)} service and {len(TR547_CLIENT_MANDATORY_CSEP)} end-point "
+        f"attributes checked on {len(eps)} end points" + (f"; missing {gaps}" if gaps else ""),
+        reference="SOURCES.md S8 (TR-547 v1.2 Tables 23-24, rendered pp. 115-118)",
+    )
+
+
+@_declares(CALIBRATED, 'SOURCES.md S7 (TAPI v2.1.5 tapi-connectivity.tree, connectivity-service)')
+def point_tapi_every_key_in_the_create_body_is_a_child_of_connectivity_service_in_the_2_1_5_tree() -> Point:
+    tree = _tapi_checked_text("tapi-connectivity.tree")
+    cs = set(tapi.tree_children(tree, ("connectivity-service",)))
+    ep = set(tapi.tree_children(tree, ("connectivity-service", "end-point")))
+    top, csep = tapi.body_keys(_tapi_create_body())
+    strays = sorted(set(top) - cs) + sorted("end-point." + k for k in set(csep) - ep)
+    return Point(
+        "tapi-every-key-in-the-create-body-is-a-child-of-connectivity-service-in-the-2-1-5-tree",
+        CALIBRATED, not strays and "connectivity-constraint" not in cs,
+        f"{len(top)} service keys and {len(csep)} end-point keys against {len(cs)} and {len(ep)} "
+        f"children in the tree" + (f"; not children: {strays}" if strays else ""),
+        reference="SOURCES.md S7 (TAPI v2.1.5 tapi-connectivity.tree, connectivity-service)",
+    )
+
+
+@_declares(CALIBRATED, 'SOURCES.md S7 (tapi-common.yang typedef uuid); S8 (Table 23 uuid row, p. 115)')
+def point_tapi_the_service_uuid_is_rfc_4122_lowercase_as_the_yang_description_and_table_23_say() -> Point:
+    common = _tapi_checked_text("tapi-common.yang")
+    pattern = re.compile("^" + tapi.yang_uuid_pattern(common) + "$")
+    ids = [p.service_uuid for p in _tapi_plans()]
+    bad = [u for u in ids if not pattern.match(u) or u != u.lower()]
+    return Point(
+        "tapi-the-service-uuid-is-rfc-4122-lowercase-as-the-yang-description-and-table-23-say", CALIBRATED,
+        not bad and len(set(ids)) == 2,  # two circuits compiled, two distinct uuids: exact by construction
+        f"{len(ids)} uuids from 2 circuits, all match the description's pattern and are lowercase; "
+        "the typedef itself is a bare string, so nothing enforces this server-side",
+        reference="SOURCES.md S7 (tapi-common.yang typedef uuid); S8 (Table 23 uuid row, p. 115)",
+    )
+
+
+@_declares(CALIBRATED, 'SOURCES.md S8 (Table 23 requested-capacity row, p. 116, value written "[0-9]{8}"); S7 (typedef capacity-unit; capacity-value is uint64)')
+def point_tapi_photonic_capacity_is_a_slot_width_in_ghz_and_the_unit_is_in_the_yang_enum() -> Point:
+    common = _tapi_checked_text("tapi-common.yang")
+    units = tapi.yang_enum(common, "capacity-unit")
+    cap = _tapi_create_body().get("requested-capacity", {}).get("total-size", {})
+    ok = cap.get("unit") == "GHz" and "GHz" in units and cap.get("value") == "50"
+    return Point(
+        "tapi-photonic-capacity-is-a-slot-width-in-ghz-and-the-unit-is-in-the-yang-enum", CALIBRATED, ok,
+        f"requested-capacity {cap}: the uint64 goes as a JSON string, as RFC 7951 6.1 encodes it and "
+        f"Table 23 writes it; capacity-unit enum has {len(units)} members",
+        reference="SOURCES.md S8 (Table 23 requested-capacity row, p. 116, value written \"[0-9]{8}\"); "
+                  "S7 (typedef capacity-unit; capacity-value is uint64)",
+    )
+
+
+@_declares(CALIBRATED, 'SOURCES.md S7 (tapi-common.yang typedef date-and-time, description); S8 (p. 188, the CREATION_TIME row, the one timestamp layout the text names)')
+def point_tapi_schedule_times_follow_the_layout_the_date_and_time_typedef_describes() -> Point:
+    """The typedef is a bare string; its description is the only layout pinned anywhere."""
+    block = tapi.yang_block(_tapi_checked_text("tapi-common.yang"), "typedef", "date-and-time")
+    described = tapi.DATE_AND_TIME_LAYOUT in block
+    stamps: List[str] = []
+    for p in _tapi_plans():
+        for c in p.calls:
+            for svc in (c.body or {}).get(tapi.ROOT_KEY, []):
+                stamps.extend(str(v) for v in (svc.get("schedule") or {}).values())
+    off = [s for s in stamps if not tapi.DATE_AND_TIME_PATTERN.match(s)]
+    # vacuity floor: one body's start and end; 6 are measured over three bodies
+    ok = described and len(stamps) >= 2 and not off
+    return Point(
+        "tapi-schedule-times-follow-the-layout-the-date-and-time-typedef-describes", CALIBRATED, ok,
+        f"{len(stamps)} schedule values across the create and PUT bodies"
+        + (f", all in the {tapi.DATE_AND_TIME_LAYOUT} layout the typedef's description gives"
+           if not off else f"; off the layout: {off}")
+        + ("" if described else "; the typedef's description no longer gives that layout")
+        + "; TR-547 v1.2 shows no schedule value and names the IETF layout only for a "
+          "CREATION_TIME name value, so the typedef is the pin",
+        reference="SOURCES.md S7 (tapi-common.yang typedef date-and-time, description); "
+                  "S8 (p. 188, the CREATION_TIME row, the one timestamp layout the text names)",
+    )
+
+
+@_declares(CALIBRATED, 'SOURCES.md S8 (TR-547 v1.2 UC 10, rendered p. 221)')
+def point_tapi_a_delete_names_the_service_by_uuid_and_expects_204() -> Point:
+    deletes = [c for p in _tapi_plans() for c in p.calls if c.method == "DELETE"]
+    ok = bool(deletes) and all(
+        c.destructive and c.expect_status == (204,)
+        and re.search(r"connectivity-service=[0-9a-f-]{36}$", c.path) for c in deletes)
+    return Point(
+        "tapi-a-delete-names-the-service-by-uuid-and-expects-204", CALIBRATED, ok,
+        f"{len(deletes)} DELETE calls across release and failover",
+        reference="SOURCES.md S8 (TR-547 v1.2 UC 10, rendered p. 221)",
+    )
+
+
+@_declares(CALIBRATED, 'SOURCES.md S8 (TR-547 v1.2 UC 1.0: the server MUST return the Location header, p. 115)')
+def point_tapi_the_create_expects_a_location_header_as_uc_1_0_requires() -> Point:
+    posts = [c for p in _tapi_plans() for c in p.calls if c.method == "POST"]
+    ok = bool(posts) and all("Location" in c.expect_headers for c in posts)
+    return Point(
+        "tapi-the-create-expects-a-location-header-as-uc-1-0-requires", CALIBRATED, ok,
+        f"{len(posts)} create call(s), each expecting a Location header and a status in "
+        f"{'/'.join(map(str, tapi.EXPECT_CREATED))}; a controller that answers without the header "
+        f"has not told the caller where the service lives",
+        reference="SOURCES.md S8 (TR-547 v1.2 UC 1.0: the server MUST return the Location header, p. 115)",
+    )
+
+
+@_declares(CALIBRATED, 'SOURCES.md S8 (TR-547 v1.2 UC 11a, rendered pp. 222-223)')
+def point_tapi_a_hold_extension_is_a_put_of_the_whole_object_and_a_locked_service_is_refused() -> Point:
+    table = _tapi_table()
+    profile = tapi.Profile(slot_width_ghz=50)
+    hold = Intent(Verb.HOLD_UNTIL, "stitch-12-1", hold_s=12 * 3600.0)
+    current = dict(_tapi_create_body())
+    unlocked = tapi.compile_intent_to_tapi(hold, profile=profile, sip_table=table, now_s=TAPI_NOW_S,
+                                           current_service=current)
+    locked = tapi.compile_intent_to_tapi(hold, profile=profile, sip_table=table, now_s=TAPI_NOW_S,
+                                         current_service=dict(current, **{"administrative-state": "LOCKED"}))
+    put = [c for c in unlocked.calls if c.method == "PUT"]
+    whole = bool(put) and set(put[0].body[tapi.ROOT_KEY][0]) >= (set(current) - {"connection"})
+    ok = (len(put) == 1 and whole and put[0].expect_status == (204,)
+          and "PATCH" not in unlocked.methods and locked.refused is not None
+          and locked.calls == ())
+    return Point(
+        "tapi-a-hold-extension-is-a-put-of-the-whole-object-and-a-locked-service-is-refused", CALIBRATED, ok,
+        f"unlocked: {unlocked.methods}; locked: refused={locked.refused is not None}, "
+        f"{len(locked.calls)} call(s) emitted",
+        reference="SOURCES.md S8 (TR-547 v1.2 UC 11a, rendered pp. 222-223)",
+    )
+
+
+@_declares(CALIBRATED, 'SOURCES.md S8 (TR-547 v1.2 section 2.6.1, RFC 7951 section 4)')
+def point_tapi_the_json_root_key_is_module_qualified_and_the_children_are_not() -> Point:
+    posts = [c for p in _tapi_plans() for c in p.calls if c.body is not None]
+
+    def keys_below(obj) -> List[str]:
+        out: List[str] = []
+        if isinstance(obj, dict):
+            for k, v in obj.items():
+                out.append(k)
+                out += keys_below(v)
+        elif isinstance(obj, list):
+            for v in obj:
+                out += keys_below(v)
+        return out
+
+    bad = []
+    for c in posts:
+        roots = list(c.body)
+        if roots != ["tapi-connectivity:connectivity-service"]:
+            bad.append(f"{c.method}: root {roots}")
+        inner = [k for k in keys_below(c.body[roots[0]]) if ":" in k]
+        if inner:
+            bad.append(f"{c.method}: qualified children {inner}")
+    return Point(
+        "tapi-the-json-root-key-is-module-qualified-and-the-children-are-not", CALIBRATED,
+        bool(posts) and not bad,
+        f"{len(posts)} bodies (POST and PUT) checked" + (f"; {bad}" if bad else ""),
+        reference="SOURCES.md S8 (TR-547 v1.2 section 2.6.1, RFC 7951 section 4)",
+    )
+
+
+@_declares(EMERGENT, "-")
+def point_tapi_a_failover_has_exactly_one_destructive_call_and_it_is_last() -> Point:
+    fo = _tapi_plans()[1]
+    destructive = [i for i, c in enumerate(fo.calls) if c.destructive]
+    verify = [i for i, c in enumerate(fo.calls) if c.operation == "verify_path"]
+    ok = destructive == [len(fo.calls) - 1] and verify and max(verify) < destructive[0]
+    return Point(
+        "tapi-a-failover-has-exactly-one-destructive-call-and-it-is-last", EMERGENT, ok,
+        f"calls {fo.methods}; destructive at {destructive}, verify reads at {verify}",
+    )
+
+
+@_declares(EMERGENT, "-")
+def point_tapi_an_unknown_endpoint_refuses_with_no_calls_at_all() -> Point:
+    table = _tapi_table()
+    profile = tapi.Profile(slot_width_ghz=50)
+    unknown = _tapi_request().replace(
+        endpoints=(Endpoint("node-1", "port-13-input"), Endpoint("node-9", "port-1")))
+    two_inputs = _tapi_request().replace(
+        endpoints=(Endpoint("node-1", "port-13-input"), Endpoint("node-2", "port-14-input")))
+    plans = [tapi.compile_intent_to_tapi(i, profile=profile, sip_table=table, now_s=TAPI_NOW_S)
+             for i in (unknown, two_inputs)]
+    ok = all(p.refused and p.calls == () for p in plans)
+    return Point(
+        "tapi-an-unknown-endpoint-refuses-with-no-calls-at-all", EMERGENT, ok,
+        "an endpoint outside the SIP table and a pair of two inputs: "
+        + "; ".join(f"{len(p.calls)} calls, refused={p.refused is not None}" for p in plans),
+    )
+
+
+@_declares(EMERGENT, "-")
+def point_tapi_the_same_intent_compiles_to_the_same_bytes() -> Point:
+    a = json.dumps([p.to_dict() for p in _tapi_plans()], sort_keys=True)
+    b = json.dumps([p.to_dict() for p in _tapi_plans()], sort_keys=True)
+    return Point(
+        "tapi-the-same-intent-compiles-to-the-same-bytes", EMERGENT, a == b,
+        f"{len(a)} bytes of plan JSON, compiled twice, "
+        + ("identical" if a == b else "different"),
+    )
+
+
+@_declares(EMERGENT, "-")
+def point_tapi_a_service_with_no_slot_width_omits_requested_capacity() -> Point:
+    table = _tapi_table()
+    plan = tapi.compile_intent_to_tapi(_tapi_request(), profile=tapi.Profile(), sip_table=table,
+                                       now_s=TAPI_NOW_S)
+    body = plan.calls[2].body[tapi.ROOT_KEY][0]
+    return Point(
+        "tapi-a-service-with-no-slot-width-omits-requested-capacity", EMERGENT,
+        "requested-capacity" not in body and plan.refused is None,
+        "with no slot width the body has no requested-capacity container rather than an invented one",
+    )
+
+
+@_declares(SANITY, "-")
+def point_tapi_every_vendored_file_matches_its_manifest() -> Point:
+    bad = _tapi_manifest_mismatches(TAPI_DATA / "yang") + _tapi_manifest_mismatches(TAPI_DATA / "recorded")
+    n_yang = len(json.loads((TAPI_DATA / "yang" / "MANIFEST.json").read_text())["files"])
+    n_rec = len(json.loads((TAPI_DATA / "recorded" / "MANIFEST.json").read_text())["files"])
+    return Point(
+        "tapi-every-vendored-file-matches-its-manifest", SANITY, not bad,
+        f"{n_yang} YANG/tree/licence files and {n_rec} recorded replies against their sha256 pins"
+        + (f"; {bad}" if bad else ""),
+    )
+
+
+def _tapi_recorded() -> List[Tuple[str, Dict[str, object]]]:
+    bad = _tapi_manifest_mismatches(TAPI_DATA / "recorded")
+    if bad:
+        raise RuntimeError("; ".join(bad))
+    man = json.loads((TAPI_DATA / "recorded" / "MANIFEST.json").read_text())
+    return [(n, json.loads((TAPI_DATA / "recorded" / n).read_text())) for n in sorted(man["files"])]
+
+
+@_declares(SANITY, "-")
+def point_tapi_the_recorded_mock_departs_from_tr_547_in_exactly_the_listed_places() -> Point:
+    known = {s.uuid for s in _tapi_table().entries.values()}
+    checks = tapi.check_recorded(_tapi_recorded(), known)
+    measured = {(d.file, d.kind) for c in checks for d in c.departures}
+    on_table = sum(1 for c in checks if c.on_table)
+    listed = set(TAPI_MOCK_DEPARTURES)
+    return Point(
+        "tapi-the-recorded-mock-departs-from-tr-547-in-exactly-the-listed-places", SANITY,
+        measured == listed and on_table >= 8,  # vacuity floor, below the 10 on-table calls measured
+        f"{on_table} of {len(checks)} recorded calls are on the table; {len(measured)} departures measured, "
+        f"{len(listed)} listed"
+        + ("" if measured == listed else f"; unlisted {sorted(measured - listed)}, missing {sorted(listed - measured)}"),
+    )
+
+
+@_declares(SANITY, "-")
+def point_tapi_the_recorded_read_back_echoes_every_attribute_the_create_body_sent() -> Point:
+    rec = dict(_tapi_recorded())
+    sent = rec["05-post-connectivity-context-cs1.json"]["request_body"][tapi.ROOT_KEY][0]
+    got = rec["06-get-connectivity-service-cs1.json"]["body"]
+
+    def subset(a, b, path="") -> List[str]:
+        if isinstance(a, dict):
+            if not isinstance(b, dict):
+                return [path or "/"]
+            out: List[str] = []
+            for k, v in a.items():
+                out += subset(v, b.get(k), f"{path}/{k}") if k in b else [f"{path}/{k}"]
+            return out
+        if isinstance(a, list):
+            if not isinstance(b, list) or len(a) != len(b):
+                return [path]
+            return [m for i, (x, y) in enumerate(zip(a, b)) for m in subset(x, y, f"{path}[{i}]")]
+        return [] if str(a) == str(b) else [f"{path}={a!r}!={b!r}"]
+
+    missing = subset(sent, got)
+    extra = sorted(set(got) - set(sent))
+    return Point(
+        "tapi-the-recorded-read-back-echoes-every-attribute-the-create-body-sent", SANITY,
+        not missing and "schedule" in got,
+        f"every sent leaf came back (compared as strings: the mock returns the capacity value as an "
+        f"integer); the server added {extra}" + (f"; missing {missing}" if missing else ""),
+    )
+
+
+TAPI_REGISTRY: Tuple[Callable[[], Point], ...] = (
+    point_tapi_every_emitted_call_is_a_table_5_path_with_a_standing_method,
+    point_tapi_the_create_body_carries_every_client_mandatory_attribute_of_tables_23_and_24,
+    point_tapi_every_key_in_the_create_body_is_a_child_of_connectivity_service_in_the_2_1_5_tree,
+    point_tapi_the_service_uuid_is_rfc_4122_lowercase_as_the_yang_description_and_table_23_say,
+    point_tapi_photonic_capacity_is_a_slot_width_in_ghz_and_the_unit_is_in_the_yang_enum,
+    point_tapi_schedule_times_follow_the_layout_the_date_and_time_typedef_describes,
+    point_tapi_a_delete_names_the_service_by_uuid_and_expects_204,
+    point_tapi_the_create_expects_a_location_header_as_uc_1_0_requires,
+    point_tapi_a_hold_extension_is_a_put_of_the_whole_object_and_a_locked_service_is_refused,
+    point_tapi_the_json_root_key_is_module_qualified_and_the_children_are_not,
+    point_tapi_a_failover_has_exactly_one_destructive_call_and_it_is_last,
+    point_tapi_an_unknown_endpoint_refuses_with_no_calls_at_all,
+    point_tapi_the_same_intent_compiles_to_the_same_bytes,
+    point_tapi_a_service_with_no_slot_width_omits_requested_capacity,
+    point_tapi_every_vendored_file_matches_its_manifest,
+    point_tapi_the_recorded_mock_departs_from_tr_547_in_exactly_the_listed_places,
+    point_tapi_the_recorded_read_back_echoes_every_attribute_the_create_body_sent,
+)
+
+
 REGISTRY: Tuple[Callable[[], Point], ...] = (
     point_q_six_is_the_published_1e9,
     point_q_seven_is_the_published_value,
@@ -1373,6 +1867,7 @@ REGISTRY: Tuple[Callable[[], Point], ...] = (
     point_hedge_every_pinned_file_is_present_and_matches_its_sha256,
     point_hedge_the_four_servers_re_timing_anchors_agree_within_one_report_interval,
     point_hedge_the_event_join_agrees_with_the_authors_index_aligned_reduction,
+    *TAPI_REGISTRY,
 )
 
 
@@ -1381,7 +1876,8 @@ def run_registry() -> List[Point]:
 
     An exception used to abort the run and hide every later result, which meant
     one broken check could make a red registry look like a crash and a crash
-    look like nothing at all.
+    look like nothing at all. A point that declares its kind (``_declares``)
+    fails in that kind; one that does not fails as sanity (DECISIONS.md D12).
     """
     _HEDGE_RUNS.clear()
     _HEDGE_SUMMARIES.clear()
@@ -1392,7 +1888,8 @@ def run_registry() -> List[Point]:
         except Exception as exc:  # noqa: BLE001 - a raising point is a failing point
             results.append(Point(
                 check.__name__.removeprefix("point_").replace("_", "-"),
-                SANITY, False, f"raised {type(exc).__name__}: {exc}",
+                getattr(check, "kind", SANITY), False, f"raised {type(exc).__name__}: {exc}",
+                reference=getattr(check, "reference", "-"),
             ))
     return results
 
