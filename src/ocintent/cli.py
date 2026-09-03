@@ -15,14 +15,16 @@ into a pipeline should not have to remember which one it invoked:
 from __future__ import annotations
 
 import argparse
+import dataclasses
 import json
 import sys
+from pathlib import Path
 from typing import Any, Dict, List, Optional, Sequence
 
-from . import __version__
+from . import __version__, hedge
 from .checkpoint import CheckpointPlan, Strategy, cheapest_durable
 from .checkpoint import compare as compare_strategies
-from .drift import DeclaredCircuit, DriftVerdict, MeasuredCircuit, forecast
+from .drift import DEFAULT_TARGET_BER, DeclaredCircuit, DriftVerdict, MeasuredCircuit, forecast
 from .drift import compare as compare_circuit
 from .intent import Boundary, Endpoint, Intent, Verb, compile_intent
 from .ledger import Ledger
@@ -264,12 +266,59 @@ def cmd_drift(args: argparse.Namespace) -> int:
             il_rate_db_per_year=args.il_rate,
             receiver_budget_db=args.receiver_budget_db,
             target_ber=args.target_ber,
+            detection=args.detection,
         )
         print()
         print(fc.explain())
         if fc.actionable:
             print("  actionable: schedule a window inside the year")
     return OK if report.verdict is DriftVerdict.MATCHES else REFUSED
+
+
+def _hedge_json(summaries: Dict[str, hedge.RunSummary]) -> Dict[str, Any]:
+    out: Dict[str, Any] = {"commit": hedge.HEDGE_COMMIT, "runs": {}}
+    for name, s in summaries.items():
+        out["runs"][name] = {
+            "window_s": list(s.window),
+            "disturbance": s.disturbance,
+            "figure": s.figure,
+            "wavelengths": [
+                dataclasses.asdict(tl)
+                | {"failed": tl.failed, "onset_lead_s": tl.onset_lead_s,
+                   "failure_poll_gap_s": tl.failure_poll_gap_s}
+                for tl in s.wavelengths
+            ],
+            "scaling": [dataclasses.asdict(c)
+                        | {"closer": c.closer, "decades_of_q": c.decades_of_q,
+                           "implied_db_per_decade": c.implied_db_per_decade,
+                           "steeper_than_both": c.steeper_than_both}
+                        for c in (hedge.scaling_check(tl) for tl in s.wavelengths) if c],
+            "link_down_s": [list(iv) for iv in s.link_down],
+            "reports": s.reports,
+            "retiming": [dataclasses.asdict(rt) for rt in s.retiming],
+            "probe_gbps_median": s.probe_gbps_median,
+            "lead_first_failure_to_link_loss_s": s.lead_first_failure_to_link_loss_s,
+            "lead_last_failure_to_link_loss_s": s.lead_last_failure_to_link_loss_s,
+            "last_failure_poll_gap_s": s.last_failure_poll_gap_s,
+            "outage_within_a_poll_of_last_failure": s.outage_within_a_poll_of_last_failure,
+        }
+    return out
+
+
+def cmd_hedge(args: argparse.Namespace) -> int:
+    """Read the measured link. Exit 2 if any pinned file is missing or altered."""
+    data_dir = Path(args.data)
+    runs = (args.run,) if args.run else hedge.RUNS
+    try:
+        summaries = hedge.load_summaries(data_dir, runs)
+    except (hedge.HedgeDataError, OSError, ValueError) as exc:
+        print(f"cannot read the HEDGE data: {exc}", file=sys.stderr)
+        return UNREADABLE
+    if args.json:
+        print(json.dumps(_hedge_json(summaries), indent=2, sort_keys=True))
+    else:
+        print(hedge.report(summaries))
+    return OK
 
 
 def cmd_ledger(args: argparse.Namespace) -> int:
@@ -381,8 +430,21 @@ def build_parser() -> argparse.ArgumentParser:
     c.add_argument("--il-rate", type=float, default=None,
                    help="measured insertion-loss trend in dB/year; enables the forecast")
     c.add_argument("--receiver-budget-db", type=float, default=18.0)
-    c.add_argument("--target-ber", type=float, default=1e-12)
+    c.add_argument("--target-ber", type=float, default=DEFAULT_TARGET_BER,
+                   help="a coherent transponder fails at its pre-FEC limit, near 3e-2; "
+                        "pass that here with --detection coherent")
+    c.add_argument("--detection", choices=("direct", "coherent"), default="direct",
+                   help="how Q scales with margin: 10 dB per decade (direct) or 20 dB "
+                        "per decade (coherent); the measured link was closer to coherent, and steeper than both")
     c.set_defaults(func=cmd_drift)
+
+    c = sub.add_parser("hedge", help="the one measured link: BER, FEC and traffic, per run")
+    c.add_argument("--data", default="data/hedge",
+                   help="directory `make data` filled (default: data/hedge)")
+    c.add_argument("--run", choices=hedge.RUNS, default=None,
+                   help="one run instead of all three")
+    c.add_argument("--json", action="store_true")
+    c.set_defaults(func=cmd_hedge)
 
     c = sub.add_parser("ledger", help="the capacity-debt report")
     c.add_argument("ledger", help="path to a ledger JSON")

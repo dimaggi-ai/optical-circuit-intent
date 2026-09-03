@@ -182,6 +182,21 @@ A trend that does not cross within the horizon says so, distinctly from a path
 with no trend at all — the two were once reported identically, which made a
 real trend look like a flat line.
 
+The forecast takes a `detection` argument. Direct detection scales Q at 10 dB
+per decade, coherent at 20 dB (`DB_PER_DECADE_OF_Q`); the default is direct
+because the published anchors are written against it. A coherent transponder
+does not fail at 1e-12 — on the one measured link every wavelength failed at
+a pre-FEC error rate near 3e-2 — so a forecast for one is given that limit:
+
+```python
+forecast("stitch-ab-1", il_now_db=14.0, il_rate_db_per_year=1.2,
+         receiver_budget_db=18.0, target_ber=3e-2, detection="coherent")
+```
+
+`margin_span_db(ber_from, ber_to, detection=...)` answers the reverse
+question — how many decibels of margin separate two error rates — and is
+what the measured link is compared against (`ocintent.hedge.scaling_check`).
+
 ---
 
 ## `ledger` — what it all costs
@@ -208,3 +223,49 @@ Two bridges convert other models into entries: `debt_from_drift` and
 `debt_from_stranded_ports`. Both take the conversion factor as a caller argument
 (ASSUMPTIONS A10), because neither the drift report nor the switch knows how
 much the job cares.
+
+---
+
+## `hedge` — what one real link did
+
+Not a model: a reader for the raw files of the HEDGE testbed (SOURCES.md S6),
+fetched and SHA-pinned by `make data`. Three runs — a bend across three
+wavelengths, the same bend across three modulation formats, and a
+transmit-side attenuator sweep — each with a transponder log (BER,
+uncorrectable-FEC counter, received power, per wavelength) and four iperf
+server logs.
+
+```python
+from pathlib import Path
+from ocintent import hedge
+
+summaries = hedge.load_summaries(Path("data/hedge"))   # raises if any file is missing or altered
+wdl = summaries["wdl"]
+wdl.link_lost_s                              # 221.5: the four probes all quiet
+wdl.lead_first_failure_to_link_loss_s        # 39.0: first FEC alarm to outage
+wdl.lead_last_failure_to_link_loss_s         # -0.1: the outage began just before the last alarm sample
+wdl.last_failure_poll_gap_s                  # 1.6: the transponder's resolution on that failure
+[(t.name, t.failed_s) for t in wdl.failures] # each wavelength's first uncorrectable FEC
+wdl.retiming[0].max_late_s                   # 5.0: how far server 1's stamps trailed their intervals
+hedge.scaling_check(wdl.failures[0]).closer  # "coherent"; .steeper_than_both is True
+print(hedge.report(summaries))               # what `ocintent hedge` prints
+```
+
+The iperf logs' stamps are output flushes up to five seconds late, so every
+interval is re-timed from iperf's own interval field, anchored per log at
+its least-late line; `Run.retiming` carries what that measured, and the
+Layer-3 dark intervals run from the start of the first interval that left
+every server at zero (DECISIONS.md D14).
+
+Every marker is the authors' own (DECISIONS.md D14): failure is the first
+sample whose FEC counter exceeds its initial value, re-stabilisation the
+first index followed by five equal readings, and the analysis window each
+notebook's plot limit. The BER onset — the last pre-failure sample at or
+below the window-start BER — is the one marker the paper does not define,
+and it has no parameter. It is this repository's choice; the registry
+prints what the obvious alternative gives beside it.
+
+What the reader will not do: skip. A missing or altered file raises
+`HedgeDataError` with the `make data` instruction in it, `ocintent hedge`
+exits 2, and every registry point that reads the link fails in its own kind
+(D13).

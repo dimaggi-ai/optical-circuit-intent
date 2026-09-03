@@ -10,13 +10,16 @@ abstract: >-
   stranded because they are on the wrong trunk; a checkpoint model separating
   the stop tax you can see in a training curve from the contention tax you
   cannot; a declared-versus-measured comparison with a drift forecast built on
-  the published error-rate relation; and a capacity-debt ledger in the shape of
-  an aging schedule.
+  the published error-rate relation; a capacity-debt ledger in the shape of
+  an aging schedule; and a reader for the raw files of one measured link,
+  the HEDGE testbed, on which the first FEC alarm ran 88 and 39 seconds
+  ahead of the outage and the outage began inside the transponder poll in
+  which the last wavelength failed.
 authors:
   - family-names: Nanyonga
     given-names: Margaret
-version: 1.0.0
-date-released: "2026-09-01"
+version: 1.1.0
+date-released: "2026-09-03"
 license: MIT
 repository-code: "https://github.com/dimaggi-ai/optical-circuit-intent"
 keywords:

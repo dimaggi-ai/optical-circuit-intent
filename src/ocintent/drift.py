@@ -60,25 +60,85 @@ def ber_from_q(q: float) -> float:
     return 0.5 * math.erfc(q / math.sqrt(2.0))
 
 
-def q_from_margin_db(margin_db: float, *, q_at_threshold: float = 6.0) -> float:
+#: Decibels of optical margin per decade of Q, by the noise regime the
+#: receiver runs in. ``direct``: a thermal-noise-limited direct-detection
+#: receiver, whose photocurrent is proportional to optical power, so Q
+#: moves a decade per 10 dB. ``coherent``: the OSNR-limited regime of an
+#: amplified link, where Q squared follows the signal-to-noise ratio, so Q
+#: moves a decade per 20 dB. The keys name the receivers each figure is
+#: usually quoted for; the physics is the regime. The default is ``direct``
+#: because the anchors in SOURCES.md S1 are written against
+#: threshold-detected binary signalling; on the measured link in ``hedge``
+#: every wavelength that failed was closer to ``coherent`` than to that
+#: default, and steeper than both, and the registry says so.
+DB_PER_DECADE_OF_Q: Dict[str, float] = {"direct": 10.0, "coherent": 20.0}
+
+#: The error rate the forecast counts down to unless told otherwise: the
+#: figure a threshold receiver is specified to. A coherent transponder runs
+#: to its pre-FEC limit instead, near 3e-2 on the measured link
+#: (``ocintent.hedge``), and a caller modelling one should pass that.
+DEFAULT_TARGET_BER = 1e-12
+
+
+def q_from_margin_db(
+    margin_db: float, *, q_at_threshold: float = 6.0, detection: str = "direct",
+) -> float:
     """Electrical Q from optical margin above the receiver threshold.
 
     One dB of optical power is two dB of electrical power for a direct-detection
     receiver, so Q scales as ``10 ** (margin_db / 10)`` in amplitude terms. The
     anchor is the receiver's rated threshold: at zero margin the receiver is at
     its specified operating point, conventionally Q = 6, which is the error rate
-    a 1e-9 specification is written against.
+    a 1e-9 specification is written against. A coherent receiver halves the
+    exponent (``detection="coherent"``); :data:`DB_PER_DECADE_OF_Q` says why.
 
     This is a first-order relation and it is the weakest link in the prediction
     chain. It ignores dispersion, nonlinearity, and every amplifier's noise
     contribution. Its job is to make the *shape* of the cliff right --- steep,
     and steeper the closer you are --- not to predict a particular receiver.
     """
-    return q_at_threshold * (10.0 ** (margin_db / 10.0))
+    return q_at_threshold * (10.0 ** (margin_db / DB_PER_DECADE_OF_Q[detection]))
 
 
-def ber_from_margin_db(margin_db: float, *, q_at_threshold: float = 6.0) -> float:
-    return ber_from_q(q_from_margin_db(margin_db, q_at_threshold=q_at_threshold))
+def ber_from_margin_db(
+    margin_db: float, *, q_at_threshold: float = 6.0, detection: str = "direct",
+) -> float:
+    return ber_from_q(q_from_margin_db(
+        margin_db, q_at_threshold=q_at_threshold, detection=detection,
+    ))
+
+
+def q_from_ber(ber: float) -> float:
+    """The Q at which ``ber_from_q`` gives ``ber``. Bisection; no dependency.
+
+    ``ber >= 0.5`` is Q = 0. A rate of zero has no finite Q and raises, because
+    a caller who reaches this with zero errors has a counting window to
+    report, not an error rate.
+    """
+    if ber <= 0.0:
+        raise ValueError("an error rate of zero has no finite Q")
+    if ber >= 0.5:
+        return 0.0
+    lo, hi = 0.0, 40.0
+    for _ in range(200):
+        mid = (lo + hi) / 2.0
+        if ber_from_q(mid) > ber:
+            lo = mid
+        else:
+            hi = mid
+    return (lo + hi) / 2.0
+
+
+def margin_span_db(ber_from: float, ber_to: float, *, detection: str = "direct") -> float:
+    """Decibels of margin between two error rates under one scaling.
+
+    Positive when ``ber_to`` is the worse rate. Independent of the threshold
+    anchor: only the ratio of the two Qs and the dB-per-decade enter.
+    """
+    q_from, q_to = q_from_ber(ber_from), q_from_ber(ber_to)
+    if q_to <= 0.0 or q_from <= 0.0:
+        return math.inf
+    return DB_PER_DECADE_OF_Q[detection] * math.log10(q_from / q_to)
 
 
 @dataclass(frozen=True)
@@ -282,9 +342,10 @@ def forecast(
     il_rate_db_per_year: float,
     receiver_budget_db: float,
     *,
-    target_ber: float = 1e-12,
+    target_ber: float = DEFAULT_TARGET_BER,
     q_at_threshold: float = 6.0,
     horizon_years: float = 25.0,
+    detection: str = "direct",
 ) -> DriftForecast:
     """When will a slowly-worsening path cross an error-rate target?
 
@@ -296,21 +357,26 @@ def forecast(
     ``horizon_years`` bounds the answer. A path crossing in forty years is not a
     forecast, it is a rounding error on the loss rate, and reporting it as a
     date invites someone to act on it.
+
+    ``target_ber`` defaults to a threshold-receiver figure. A coherent
+    transponder with forward error correction fails at its *pre-FEC* limit,
+    which the measured link in ``hedge`` puts near 3e-2; pass that as the
+    target, and ``detection="coherent"``, for such a plant.
     """
     if il_rate_db_per_year <= 0:
         margin = receiver_budget_db - il_now_db
         return DriftForecast(
             circuit_id, il_now_db, il_rate_db_per_year, margin,
-            ber_from_margin_db(margin, q_at_threshold=q_at_threshold),
+            ber_from_margin_db(margin, q_at_threshold=q_at_threshold, detection=detection),
             math.inf, target_ber, horizon_years,
         )
 
     margin_now = receiver_budget_db - il_now_db
-    ber_now = ber_from_margin_db(margin_now, q_at_threshold=q_at_threshold)
+    ber_now = ber_from_margin_db(margin_now, q_at_threshold=q_at_threshold, detection=detection)
 
     def ber_at(years: float) -> float:
         margin = receiver_budget_db - (il_now_db + il_rate_db_per_year * years)
-        return ber_from_margin_db(margin, q_at_threshold=q_at_threshold)
+        return ber_from_margin_db(margin, q_at_threshold=q_at_threshold, detection=detection)
 
     if ber_now >= target_ber:
         years = 0.0

@@ -1,0 +1,4 @@
+# Fetched, not vendored. `make data` populates these from the pinned commit.
+prototype/
+wdl/
+mod_formats/

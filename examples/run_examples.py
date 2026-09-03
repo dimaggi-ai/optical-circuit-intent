@@ -55,6 +55,15 @@ CASES: Tuple[Tuple[Tuple[str, ...], int, str], ...] = (
      "the same report against a budget it exceeds"),
     (("example", "rhythm"), 0,
      "the reference rhythm, as JSON"),
+    (("hedge",), 0,
+     "the measured link: every wavelength's BER onset, FEC cliff and the traffic outage, per run"),
+    (("hedge", "--run", "wdl", "--json"), 0,
+     "one run of the measured link, as JSON"),
+    (("hedge", "--data", "examples/no-such-data"), 2,
+     "the measured link with its files missing: unreadable, not silently empty"),
+    (("drift", "examples/circuit-drifted.json", "--il-rate", "0.9",
+      "--target-ber", "3e-2", "--detection", "coherent"), 1,
+     "the drifted circuit forecast the way the measured link says a coherent receiver fails"),
 )
 
 

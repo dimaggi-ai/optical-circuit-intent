@@ -17,11 +17,12 @@ pip install optical-circuit-intent
 ocintent ladder            # the retune legality ladder, at the reference rhythm
 ocintent checkpoint        # what each checkpoint strategy actually costs
 ocintent disagree          # where the two scheduling objectives part company
+ocintent hedge             # the one measured link (from a clone, after `make data`)
 ```
 
 ---
 
-## Three findings
+## Four findings
 
 ### 1. Two defensible retune objectives disagree over a 765-second band
 
@@ -109,6 +110,90 @@ Over 400 randomly generated switches and demands, the median switch has **83% of
 its free ports stranded**, and 36% have every free port stranded. A capacity
 report that counts free ports is counting the wrong thing.
 
+### 4. On the one measured link, the first alarm ran 88 and 39 seconds ahead of the outage, and the outage began inside the poll in which the last wavelength failed
+
+Everything above is a model. This one is a measurement, read from the raw
+files of the HEDGE testbed (NSDI '26, `SOURCES.md` S6): more than 100 km of
+fibre through four amplifiers and a ROADM, transponders polled about every
+1.6 s for bit-error rate, uncorrectable-FEC count and received power, and
+four UDP probes across the aggregated link. (That the transponders are
+coherent and the error rate is the pre-FEC one is this repository's reading;
+the paper says neither.) The authors bent the fibre in two runs and
+attenuated it in a third. `make data` fetches the fifteen files from the
+pinned commit and refuses any whose SHA-256 has changed; nothing is vendored,
+because the upstream repository carries no license.
+
+One thing had to be found out before the iperf logs could be read. Each
+line's timestamp is the moment iperf's buffered output was flushed, not the
+moment the interval ended, and it trails the interval by up to five seconds.
+Every interval is therefore re-timed from iperf's own interval field,
+anchored per log at its least-late line, and the four server logs' anchors
+agree to within a few milliseconds (`DECISIONS.md` D14):
+
+```
+WHAT RE-TIMING THE IPERF LOGS MEASURED (per run, four server logs)
+  run          intervals  anchor spread  lines >1 s late  latest stamp  probe median
+  prototype         3888           5 ms    2900/3888            4.9 s   1.200 Gbit/s
+  wdl               2580           4 ms    2306/2580            5.0 s   1.200 Gbit/s
+  mod_formats       2412           3 ms    2353/2412            5.0 s   1.200 Gbit/s
+```
+
+```
+ALARM-TO-OUTAGE LEAD, PER RUN (seconds after the run's first transponder sample)
+  run           first FEC   last FEC  poll gap  link dark  lead, first   outage vs last alarm sample
+  prototype       461.6 s    551.1 s     1.6 s    549.9 s       88.3 s     1.2 s before
+  wdl             182.5 s    221.7 s     1.6 s    221.5 s       39.0 s     0.1 s before
+  mod_formats     169.5 s    169.5 s     1.6 s      never        never         never
+```
+
+In both runs that lost the link, the first wavelength's uncorrectable-FEC
+counter moved **88.3 s and 39.0 s** before the four probes went quiet, and
+the probes went quiet **1.2 s and 0.1 s before** the *last* wavelength's alarm
+sample, inside the 1.6 s poll interval in which that wavelength failed. The
+aggregation did what it is for: the first alarm was a warning and the last
+failure was the outage, to the transponder's own resolution and no finer.
+In the third run only 16-QAM failed and traffic never stopped.
+
+That is the shape of the published runs, not a law. Outside the authors'
+analysis windows the same files hold further disturbances the paper does not
+describe, and in one of them the link went dark 3.9 s before the last
+wavelength's alarm sample, more than a poll; the experiment prints it.
+
+The measurement changed two things in the drift model. Every wavelength that
+failed did so at a pre-FEC error rate between 3.23e-2 and 3.45e-2, which is
+10.5 decades above the 1e-12 target the forecast defaults to, so a forecast
+for such a transponder has to count down to its FEC limit rather than to a
+threshold-receiver figure. And on all nine failing wavelengths (eight of them
+the paper's; the ninth is an unlabelled channel in the first bend run) the
+received-power drop between BER onset and the cliff was closer to the 20 dB
+per decade of Q that an OSNR-limited link implies than to the 10 dB per
+decade of thermal-noise-limited direct detection the model shipped with, and
+steeper than both:
+
+```
+  closer to the 20 dB branch on 9/9, to the 10 dB branch on 0, neither on 0; steeper than both on 9/9
+  implied slopes run from 21.7 to 36.6 dB per decade of Q
+```
+
+The model now takes a `detection` argument. The default stays direct, because
+the published anchors are written against it, and the registry prints the
+disagreement, with each wavelength's implied slope, on every run.
+
+**Who this does not apply to.** It is a laboratory link with two induced
+faults. The Layer-3 outcome is availability from four iperf sessions carrying
+a median 1.2 Gbit/s each (the paper's bend runs put them on a 600 Gbit/s
+aggregate), not a collective and not capacity. The iperf side is re-timed
+from iperf's own interval field; the transponder side is polled about every
+1.6 s on a clock whose agreement with the iperf hosts' is undocumented, so
+read a lead to the nearest poll, not to tenths. Nothing measured here
+transfers to another plant as a constant, and none of it is a job's lead
+time.
+
+Reproduce from a clone: `make data && make experiments`, or
+`python experiments/measured_lead_time.py`. `ocintent hedge` prints every
+wavelength's onset, cliff, failure and recovery markers and what re-timing
+measured; it needs the fetched files, which the pip package does not ship.
+
 ---
 
 ## The other three models
@@ -126,7 +211,12 @@ the inventory disagree about *which* circuit this is. Forecasts when a
 slowly-worsening path crosses an error-rate target, using the published
 `0.5·erfc(Q/√2)` relation — steep enough that 2 dB of lost margin moves the error
 rate by six orders of magnitude, which is why a gentle insertion-loss trend is
-the only warning you get.
+the only warning you get. The forecast takes a `detection` argument: direct
+detection scales Q at 10 dB per decade, coherent at 20 dB, and on the one
+measured link every failing wavelength's drop was closer to coherent than to
+direct, and steeper than both (finding 4). A coherent transponder fails at
+its pre-FEC limit, near 3e-2 on that link, so a forecast for one should be
+given that as its target rather than the 1e-12 default.
 
 **Ledger** (`ocintent.ledger`) — all of the above, aged and totalled in the shape
 of an accounts-receivable schedule, because that is a format people already know
@@ -161,17 +251,28 @@ and one invented here would travel downstream looking like a measurement.
 The validation registry prints its declined list *before* its results, every
 run. The short version:
 
-- **No measured plant.** Every number is a model output. Nothing has been
-  compared against a real optical switch, ROADM, or metro span.
-- **Two calibrated points, one relation.** Both anchors pin `0.5·erfc(Q/√2)` at
-  different places. A systematic error in that relation leaves both green.
+- **One measured link, and it is a laboratory.** The HEDGE testbed, two
+  induced faults. Nothing has been compared against a production switch,
+  ROADM or metro span, and the retune, radix, checkpoint and ledger models
+  remain unmeasured.
+- **The measured outcome is availability, not capacity.** Four UDP probes
+  carrying a median 1.2 Gbit/s each, on a 600 Gbit/s aggregate in the bend
+  runs. The iperf side is re-timed from iperf's own interval field; the
+  transponder side is polled about every 1.6 s on a clock whose agreement
+  with the iperf hosts' is undocumented. The leads are that link's, to the
+  nearest poll and inside the authors' windows; none of them is a job's lead
+  time and none transfers as a constant.
+- **Two error-rate anchors, one relation.** Both pin `0.5·erfc(Q/√2)` at
+  different places. A systematic error in that relation leaves both green. The
+  six measured anchors pin the paper's reading of its own files, which checks
+  the parsing and says nothing about the six models.
 - **Connector contamination is invisible to the forecast.** It is an event, not a
   trend, and it is the most common cause of real insertion-loss faults. A green
   forecast is not a statement that a path is healthy.
 - **No queueing model.** Contention shares a circuit linearly between a
   replication and a collective, which is a simplification at every width quoted.
 
-Run `make validate` for the other seven.
+Run `make validate` for the other eight.
 
 ---
 
@@ -179,23 +280,32 @@ Run `make validate` for the other seven.
 
 ```
 make venv          # pinned virtual environment, Python 3.12
-make test          # 137 tests, including 17 mutation tests
-make validate      # 25 registry points, and the 11 things it declines to check
-make examples      # 17 example inputs reach their documented results
-make experiments   # the three figures above
+make data          # fetch and SHA-verify the 15 HEDGE testbed files (not vendored)
+make test          # 174 tests, including 27 mutation tests
+make validate      # 40 registry points, and the 13 things it declines to check
+make examples      # 21 example inputs reach their documented results
+make experiments   # the four figures above
 make smoke-test    # everything except experiments, under a minute
 ```
 
 Every validation point is one of three kinds. **Calibrated** points are pinned
-to a published figure (there are two). **Emergent** points are orderings nothing
-was tuned to produce (eleven). **Sanity** points check this repository's own
-structure and are worth nothing as evidence about optical plants (twelve) — they
-carry no citation, and the code refuses to let them carry one.
+to a published figure (there are eight: two on the error-rate relation, six on
+what the HEDGE paper says about its own runs). **Emergent** points are
+orderings nothing was tuned to produce (sixteen, five of them read from the
+measured link). **Sanity** points check this repository's own structure and
+are worth nothing as evidence about optical plants (fourteen) — they carry no
+citation, and the code refuses to let them carry one. A measured point whose
+files are missing fails in its own kind; it never skips.
 
-The mutation tests break real machinery and assert the *exact* set of points that
-turns red. One of them asserts the registry does **not** notice a hundred-fold
-error in the fibre thermal coefficient, because it genuinely cannot: that value
-is an input, and closing the gap needs a measurement from a real span.
+The mutation tests break real machinery and assert the *exact* set of points
+that turns red, measured rather than predicted. Three of them assert the
+registry does **not** notice something, because it genuinely cannot: a
+hundred-fold error in the fibre thermal coefficient, which is an input no
+measurement here reaches; the Layer-3 join rewritten from "every probe quiet"
+to "any probe quiet", because the four probes ride one link and go quiet
+within a report interval of one another; and a deleted integrity check while
+the files on disk are the pinned ones, which is what a tampered-copy unit test
+is for.
 
 ## Install
 
@@ -209,7 +319,8 @@ No dependencies outside the standard library.
 
 - [`docs/the-models.md`](docs/the-models.md) — what each of the six is for
 - [`docs/integration.md`](docs/integration.md) — wiring this to a scheduler
-- [`DECISIONS.md`](DECISIONS.md) — twelve choices, and what each cost
+- [`data/hedge/README.md`](data/hedge/README.md) — the measured link's files: what they are, how they are fetched, why they are not vendored
+- [`DECISIONS.md`](DECISIONS.md) — fifteen choices, and what each cost
 - [`ASSUMPTIONS.md`](ASSUMPTIONS.md) — what is taken on faith
 - [`SOURCES.md`](SOURCES.md) — the published figures the calibrated points use
 - [`STATUS.md`](STATUS.md) — what is done, what is not, what would change it

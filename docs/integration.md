@@ -72,6 +72,14 @@ Planning against a declared 8 µs path that measures 40 µs is the campus bug. T
 compiler produces a schedule that cannot be met and the job discovers it at run
 time.
 
+If the path is a coherent transponder, forecast it to its FEC limit with the
+coherent scaling — `forecast(..., target_ber=3e-2, detection="coherent")` —
+rather than the 1e-12 threshold-receiver default. That is the direction the
+one measured link points (`ocintent hedge`; README finding 4): every failing
+wavelength was closer to that scaling than to the default, and steeper than
+both. It is the difference between an alarm with tens of seconds of lead and
+a forecast that fires years early.
+
 ## 3. Decide when, and say which objective you used
 
 ```python

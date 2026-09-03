@@ -21,6 +21,10 @@ Six models, each usable on its own:
     path that is fine now stops being fine.
 ``ledger``
     All of the above, aged and totalled, in the shape finance already reads.
+``hedge``
+    The one measured link: a laboratory testbed that was bent and attenuated
+    on purpose while its transponders and a Layer-3 probe were polled. Read
+    from the raw files, which are fetched and SHA-pinned rather than vendored.
 
 ``drift.compare`` and ``checkpoint.compare`` are both named ``compare`` in
 their own modules, which is right there and wrong here, so this namespace
@@ -29,7 +33,7 @@ exports them as :func:`compare_circuit` and :func:`compare_strategies`.
 
 from __future__ import annotations
 
-from . import checkpoint, drift, intent, ledger, legality, radix
+from . import checkpoint, drift, hedge, intent, ledger, legality, radix
 from .checkpoint import (
     CheckpointPlan,
     StallCause,
@@ -42,6 +46,8 @@ from .checkpoint import (
 from .checkpoint import compare as compare_strategies
 from .checkpoint import tax
 from .drift import (
+    DB_PER_DECADE_OF_Q,
+    DEFAULT_TARGET_BER,
     DeclaredCircuit,
     DriftForecast,
     DriftReport,
@@ -51,9 +57,12 @@ from .drift import (
     ber_from_margin_db,
     ber_from_q,
     forecast,
+    margin_span_db,
+    q_from_ber,
     q_from_margin_db,
     thermal_rtt_swing_us,
 )
+from .hedge import HEDGE_COMMIT, HedgeDataError, RunSummary, WavelengthTimeline
 from .drift import compare as compare_circuit
 from .intent import Boundary, Endpoint, Intent, Operation, Plan, Verb, compile_intent
 from .ledger import AGING_BUCKETS, Cause, DebtEntry, Ledger, debt_from_drift, debt_from_stranded_ports
@@ -79,12 +88,12 @@ from .radix import (
     preemption_plan,
 )
 
-__version__ = "1.0.1"
+__version__ = "1.1.0"
 
 __all__ = [
     "__version__",
     # modules
-    "checkpoint", "drift", "intent", "ledger", "legality", "radix",
+    "checkpoint", "drift", "hedge", "intent", "ledger", "legality", "radix",
     # intent
     "Boundary", "Endpoint", "Intent", "Operation", "Plan", "Verb", "compile_intent",
     # legality
@@ -99,9 +108,12 @@ __all__ = [
     "cheapest_durable", "StallCause", "StallEvidence", "classify_stall",
     # drift
     "DeclaredCircuit", "MeasuredCircuit", "DriftReport", "DriftVerdict",
-    "DriftForecast", "compare_circuit", "forecast", "ber_from_q",
-    "q_from_margin_db", "ber_from_margin_db", "thermal_rtt_swing_us",
-    "THERMAL_DELAY_PS_PER_KM_K",
+    "DriftForecast", "compare_circuit", "forecast", "ber_from_q", "q_from_ber",
+    "q_from_margin_db", "ber_from_margin_db", "margin_span_db",
+    "thermal_rtt_swing_us", "THERMAL_DELAY_PS_PER_KM_K", "DB_PER_DECADE_OF_Q",
+    "DEFAULT_TARGET_BER",
+    # hedge
+    "HEDGE_COMMIT", "HedgeDataError", "RunSummary", "WavelengthTimeline",
     # ledger
     "Cause", "DebtEntry", "Ledger", "AGING_BUCKETS", "debt_from_drift",
     "debt_from_stranded_ports",
