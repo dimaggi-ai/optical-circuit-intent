@@ -1,0 +1,207 @@
+{
+  "schema_version": "dimaggi-evidence/v1",
+  "coverage_scope": "Consequential headline claims, governing assumptions and model limits. Not a catalog of helper constants or proof that citations are correct.",
+  "sources": {
+    "validation/validate_intent.py": {
+      "source_type": "model-assumption",
+      "location": "validation/validate_intent.py",
+      "version_date": "2026-09-10 closure working tree; SHA-256 bound below",
+      "license_or_reuse": "Repository-authored analysis; third-party facts referenced, no new external raw data redistributed",
+      "scope": "Local authoritative definition or claim. External provenance retained in SOURCES/REFERENCES and inline citations; scenario choices are not empirical measurements."
+    },
+    "src/ocintent/drift.py": {
+      "source_type": "model-assumption",
+      "location": "src/ocintent/drift.py",
+      "version_date": "2026-09-10 closure working tree; SHA-256 bound below",
+      "license_or_reuse": "Repository-authored analysis; third-party facts referenced, no new external raw data redistributed",
+      "scope": "Local authoritative definition or claim. External provenance retained in SOURCES/REFERENCES and inline citations; scenario choices are not empirical measurements."
+    },
+    "SOURCES.md": {
+      "source_type": "model-assumption",
+      "location": "SOURCES.md",
+      "version_date": "2026-09-10 closure working tree; SHA-256 bound below",
+      "license_or_reuse": "Repository-authored analysis; third-party facts referenced, no new external raw data redistributed",
+      "scope": "Local authoritative definition or claim. External provenance retained in SOURCES/REFERENCES and inline citations; scenario choices are not empirical measurements."
+    },
+    "ASSUMPTIONS.md": {
+      "source_type": "model-assumption",
+      "location": "ASSUMPTIONS.md",
+      "version_date": "2026-09-10 closure working tree; SHA-256 bound below",
+      "license_or_reuse": "Repository-authored analysis; third-party facts referenced, no new external raw data redistributed",
+      "scope": "Local authoritative definition or claim. External provenance retained in SOURCES/REFERENCES and inline citations; scenario choices are not empirical measurements."
+    },
+    "README.md": {
+      "source_type": "model-assumption",
+      "location": "README.md",
+      "version_date": "2026-09-10 closure working tree; SHA-256 bound below",
+      "license_or_reuse": "Repository-authored analysis; third-party facts referenced, no new external raw data redistributed",
+      "scope": "Local authoritative definition or claim. External provenance retained in SOURCES/REFERENCES and inline citations; scenario choices are not empirical measurements."
+    },
+    "src/ocintent/legality.py": {
+      "source_type": "model-assumption",
+      "location": "src/ocintent/legality.py",
+      "version_date": "2026-09-10 closure working tree; SHA-256 bound below",
+      "license_or_reuse": "Repository-authored analysis; third-party facts referenced, no new external raw data redistributed",
+      "scope": "Local authoritative definition or claim. External provenance retained in SOURCES/REFERENCES and inline citations; scenario choices are not empirical measurements."
+    },
+    "hedge": {
+      "source_type": "public-dataset",
+      "location": "https://github.com/hedge-wan/hedge/tree/9c6540cf042a4933e918f9b306fcf116d8776e2f/hardware-experiments",
+      "version_date": "9c6540cf042a4933e918f9b306fcf116d8776e2f",
+      "license_or_reuse": "Facts/aggregates with attribution only; Induced laboratory faults; upstream no license file. Existing fetch only; no redistribution",
+      "scope": "Induced laboratory faults; upstream no license file. Existing fetch only; no redistribution"
+    }
+  },
+  "inputs": [
+    {
+      "name": "thermal delay",
+      "unit": "ps/km/K",
+      "evidence_class": "external-observed",
+      "sources": [
+        "src/ocintent/drift.py"
+      ],
+      "transformation": "SOURCES.md S2: representative 40 ps/km/K from published 37–40 range; input, not model calibration. Registry only checks linearity, not coefficient accuracy.",
+      "uncertainty": "Scope and qualifications stated in transformation and linked source; no unreported confidence interval",
+      "affected_outputs": [
+        "published conclusion",
+        "README.md"
+      ],
+      "value": 40,
+      "valid_bounds": [
+        0,
+        4000
+      ]
+    },
+    {
+      "name": "target BER",
+      "unit": "bit errors/bit",
+      "evidence_class": "scenario",
+      "sources": [
+        "src/ocintent/drift.py"
+      ],
+      "transformation": "Declared target, not measured receiver performance",
+      "uncertainty": "Deliberately hypothetical/operator policy; not an observed universal bound",
+      "affected_outputs": [
+        "published conclusion",
+        "README.md"
+      ],
+      "value": 1e-12,
+      "valid_bounds": [
+        0,
+        1
+      ]
+    },
+    {
+      "name": "Q threshold",
+      "unit": "dimensionless",
+      "evidence_class": "scenario",
+      "sources": [
+        "src/ocintent/drift.py"
+      ],
+      "transformation": "Direct-detection approximation; not universal coherent pre-FEC behavior",
+      "uncertainty": "Deliberately hypothetical/operator policy; not an observed universal bound",
+      "affected_outputs": [
+        "published conclusion",
+        "README.md"
+      ],
+      "value": 6,
+      "valid_bounds": [
+        0,
+        600
+      ]
+    },
+    {
+      "name": "collective timeout",
+      "unit": "seconds",
+      "evidence_class": "scenario",
+      "sources": [
+        "src/ocintent/legality.py"
+      ],
+      "transformation": "Reference job timeout assumption; not a transport guarantee",
+      "uncertainty": "Deliberately hypothetical/operator policy; not an observed universal bound",
+      "affected_outputs": [
+        "published conclusion",
+        "README.md"
+      ],
+      "value": 600,
+      "valid_bounds": [
+        0,
+        60000
+      ]
+    }
+  ],
+  "results": [
+    {
+      "name": "optical validation scope",
+      "unit": "claim",
+      "evidence_class": "external-observed",
+      "sources": [
+        "validation/validate_intent.py",
+        "hedge"
+      ],
+      "transformation": "HEDGE is one lab plant with induced faults, not production optical ground truth; BER/coherent interpretation remains qualified",
+      "uncertainty": "Scope and qualifications stated in transformation and linked source; no unreported confidence interval",
+      "affected_outputs": [
+        "published conclusion",
+        "README.md"
+      ],
+      "statement": "HEDGE is one lab plant with induced faults, not production optical ground truth; BER/coherent interpretation remains qualified"
+    },
+    {
+      "name": "retune legality",
+      "unit": "claim",
+      "evidence_class": "derived",
+      "sources": [
+        "README.md"
+      ],
+      "transformation": "Checkpoint/communication windows constrain legal retunes under declared job rhythm; not controller actuation evidence",
+      "uncertainty": "Scope and qualifications stated in transformation and linked source; no unreported confidence interval",
+      "affected_outputs": [
+        "published conclusion",
+        "README.md"
+      ],
+      "statement": "Checkpoint/communication windows constrain legal retunes under declared job rhythm; not controller actuation evidence"
+    },
+    {
+      "name": "controller interface",
+      "unit": "claim",
+      "evidence_class": "sanity-bound",
+      "sources": [
+        "README.md"
+      ],
+      "transformation": "TAPI plan/reply mocks are generated and validated; no controller calls are sent",
+      "uncertainty": "Scope and qualifications stated in transformation and linked source; no unreported confidence interval",
+      "affected_outputs": [
+        "published conclusion",
+        "README.md"
+      ],
+      "statement": "TAPI plan/reply mocks are generated and validated; no controller calls are sent"
+    }
+  ],
+  "artifacts": [
+    {
+      "path": "validation/validate_intent.py",
+      "sha256": "f47876076d0b181a10aef4a1c1cc051aa469d57d0d9bf66377b6a34e3f5d5aef"
+    },
+    {
+      "path": "src/ocintent/drift.py",
+      "sha256": "848e3ae0c8a915c5e1a0e46417a9c6312eecbb9e34d810c88f6639a5f3a829ce"
+    },
+    {
+      "path": "SOURCES.md",
+      "sha256": "906099e8e77c6639e8ff397596a152e3788238d68fa5fca715f8431aae9e61f2"
+    },
+    {
+      "path": "ASSUMPTIONS.md",
+      "sha256": "0b86b69e5d9a71dfae70a5dd5c5a4834cdd697c91390453c431a50b68bb71eda"
+    },
+    {
+      "path": "README.md",
+      "sha256": "627bbb76392470093fc8ef07dd89e5ed332de36a4f21705701ce2e98b09d9af8"
+    },
+    {
+      "path": "src/ocintent/legality.py",
+      "sha256": "88e4c26ce3117389c96ebde608d7e249c3e2e7bf85c4ddd67af5b1987148c06a"
+    }
+  ]
+}
