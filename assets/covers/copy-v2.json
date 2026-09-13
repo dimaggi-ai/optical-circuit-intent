@@ -1,0 +1,19 @@
+[
+  {
+    "repo": "optical-circuit-intent",
+    "label": "AI INFRASTRUCTURE RESEARCH",
+    "title": [
+      "When should an",
+      "optical circuit",
+      "change?"
+    ],
+    "subtitle": [
+      "Models of retuning, checkpoint",
+      "tradeoffs, and accelerator-hours."
+    ],
+    "fontSize": 58,
+    "background": "illustration-v2.png",
+    "output": ".",
+    "source_readme_commit": "1cf6c2ba56e8acee8f028e00bdacb48cb1080cc1"
+  }
+]
