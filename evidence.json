@@ -60,7 +60,7 @@
       "sources": [
         "src/ocintent/drift.py"
       ],
-      "transformation": "SOURCES.md S2: representative 40 ps/km/K from published 37\u201340 range; input, not model calibration. Registry only checks linearity, not coefficient accuracy.",
+      "transformation": "SOURCES.md S2: representative 40 ps/km/K from published 37–40 range; input, not model calibration. Registry only checks linearity, not coefficient accuracy.",
       "uncertainty": "Scope and qualifications stated in transformation and linked source; no unreported confidence interval",
       "affected_outputs": [
         "published conclusion",
