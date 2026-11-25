@@ -36,6 +36,7 @@ from .legality import (
     Legality,
     cheapest_legal,
     disagreement_intervals,
+    disagreement_width_s,
     ladder,
     soonest_legal,
 )
@@ -133,8 +134,14 @@ def cmd_compile(args: argparse.Namespace) -> int:
 
 
 def cmd_ladder(args: argparse.Namespace) -> int:
-    rhythm = _rhythm_from(args)
-    rows = ladder(rhythm, args.retune_s)
+    try:
+        rhythm = _rhythm_from(args)
+        rows = ladder(rhythm, args.retune_s)
+        cheap = cheapest_legal(rhythm, args.retune_s)
+        soon = soonest_legal(rhythm, args.retune_s)
+    except ValueError as exc:
+        print(f"unreadable retune input: {exc}", file=sys.stderr)
+        return UNREADABLE
     print(f"retune of {args.retune_s:g} s against a {rhythm.accelerators:,}-accelerator job")
     print()
     print(f"  {'boundary':<20} {'legality':<10} {'quiet':>8} {'wait':>10} "
@@ -142,8 +149,6 @@ def cmd_ladder(args: argparse.Namespace) -> int:
     for r in rows:
         print(f"  {r.boundary.value:<20} {r.legality.value:<10} {r.quiet_window_s:>8.2f} "
               f"{r.wait_s:>10.1f} {r.stall_s:>8.2f} {r.lost_accelerator_hours:>10.1f}")
-    cheap = cheapest_legal(rhythm, args.retune_s)
-    soon = soonest_legal(rhythm, args.retune_s)
     print()
     print(f"  cheapest_legal  {cheap.boundary.value if cheap else 'none'}"
           + (f"  ({cheap.lost_accelerator_hours:,.1f} accel-h, "
@@ -158,12 +163,16 @@ def cmd_ladder(args: argparse.Namespace) -> int:
 
 
 def cmd_disagree(args: argparse.Namespace) -> int:
-    rhythm = _rhythm_from(args)
-    intervals = disagreement_intervals(rhythm)
+    try:
+        rhythm = _rhythm_from(args)
+        intervals = disagreement_intervals(rhythm)
+        total = disagreement_width_s(rhythm)
+    except ValueError as exc:
+        print(f"unreadable retune input: {exc}", file=sys.stderr)
+        return UNREADABLE
     if not intervals:
         print("the two objectives agree at every retune time")
         return OK
-    total = sum(hi - lo for lo, hi in intervals)
     print(f"cheapest_legal and soonest_legal disagree over {total:,.1f} s of retune time, "
           f"in {len(intervals)} interval(s):")
     for lo, hi in intervals:

@@ -44,6 +44,27 @@ from typing import Dict, List, Optional, Tuple
 from .intent import Boundary
 
 
+def _number(name, value, *, positive=False):
+    if type(value) not in (int, float):
+        raise ValueError(f"{name} must be an ordinary int or float, excluding bool")
+    try:
+        valid = math.isfinite(value)
+    except OverflowError:
+        valid = False
+    if not valid or value < 0 or (positive and value == 0):
+        raise ValueError(f"{name} must be finite and {'positive' if positive else 'non-negative'}")
+
+
+def _derived(name, operation):
+    try:
+        value = operation()
+        if not math.isfinite(value):
+            raise ValueError(f"{name} exceeds the finite numeric range")
+        return value
+    except OverflowError:
+        raise ValueError(f"{name} exceeds the finite numeric range") from None
+
+
 class Legality(str, Enum):
     """What happens if the retune is applied at this boundary."""
 
@@ -92,14 +113,17 @@ class JobRhythm:
     remaining_s: float = 86_400.0
 
     def __post_init__(self) -> None:
-        if self.accelerators < 1:
-            raise ValueError("accelerators must be at least 1")
-        for name in ("step_s", "checkpoint_window_s", "epoch_gap_s",
-                     "collective_timeout_s", "remaining_s"):
-            if getattr(self, name) <= 0:
-                raise ValueError(f"{name} must be positive")
-        if self.cross_stitch_collective_s < 0:
-            raise ValueError("cross_stitch_collective_s must be non-negative")
+        for name in ('accelerators', 'steps_per_checkpoint', 'steps_per_epoch'):
+            value = getattr(self, name)
+            if type(value) is not int:
+                raise ValueError(f"{name} must be a positive integer, excluding bool")
+            _number(name, value, positive=True)
+        for name in ('step_s', 'checkpoint_window_s', 'epoch_gap_s',
+                     'collective_timeout_s', 'remaining_s'):
+            _number(name, getattr(self, name), positive=True)
+        _number('cross_stitch_collective_s', self.cross_stitch_collective_s)
+        if type(self.checkpoint_crosses_stitch) is not bool:
+            raise ValueError('checkpoint_crosses_stitch must be bool')
         if self.cross_stitch_collective_s >= self.step_s:
             raise ValueError(
                 "the cross-stitch collective fills or exceeds the whole step, so there "
@@ -124,12 +148,12 @@ class JobRhythm:
             # the surrounding step gap is all that is left.
             if self.checkpoint_crosses_stitch:
                 return idle_in_step
-            return idle_in_step + self.checkpoint_window_s
+            return _derived('quiet_window_s', lambda: idle_in_step + self.checkpoint_window_s)
         if boundary is Boundary.BETWEEN_EPOCHS:
-            window = idle_in_step + self.epoch_gap_s
+            window = _derived('quiet_window_s', lambda: idle_in_step + self.epoch_gap_s)
             if not self.checkpoint_crosses_stitch:
                 # Epochs almost always checkpoint, so the two windows abut.
-                window += self.checkpoint_window_s
+                window = _derived('quiet_window_s', lambda: window + self.checkpoint_window_s)
             return window
         if boundary is Boundary.BETWEEN_JOBS:
             # The circuit is free. Nothing constrains the retune's length.
@@ -144,9 +168,9 @@ class JobRhythm:
         if boundary is Boundary.BETWEEN_STEPS:
             return self.step_s / 2.0
         if boundary is Boundary.BETWEEN_CHECKPOINTS:
-            return self.steps_per_checkpoint * self.step_s / 2.0
+            return _derived('mean_wait_s', lambda: self.steps_per_checkpoint * self.step_s / 2.0)
         if boundary is Boundary.BETWEEN_EPOCHS:
-            return self.steps_per_epoch * self.step_s / 2.0
+            return _derived('mean_wait_s', lambda: self.steps_per_epoch * self.step_s / 2.0)
         if boundary is Boundary.BETWEEN_JOBS:
             return self.remaining_s / 2.0
         raise ValueError(f"unhandled boundary {boundary!r}")
@@ -172,12 +196,12 @@ class RetuneCost:
     def lost_accelerator_hours(self) -> float:
         if self.legality is Legality.FATAL:
             return float("inf")
-        return self.accelerators * self.stall_s / 3_600.0
+        return _derived('lost_accelerator_hours', lambda: self.accelerators * self.stall_s / 3_600.0)
 
     @property
     def total_delay_s(self) -> float:
         """Wall time from asking to the circuit being changed."""
-        return self.wait_s + self.stall_s
+        return _derived('total_delay_s', lambda: self.wait_s + self.stall_s)
 
     def explain(self) -> str:
         if self.legality is Legality.FATAL:
@@ -199,8 +223,7 @@ class RetuneCost:
 
 def assess(rhythm: JobRhythm, retune_s: float, boundary: Boundary) -> RetuneCost:
     """Cost and legality of applying a retune of this length at this boundary."""
-    if retune_s < 0:
-        raise ValueError("retune_s must be non-negative")
+    _number('retune_s', retune_s)
     quiet = rhythm.quiet_window_s(boundary)
     stall = 0.0 if retune_s <= quiet else retune_s - quiet
     if stall <= 0:
@@ -209,7 +232,7 @@ def assess(rhythm: JobRhythm, retune_s: float, boundary: Boundary) -> RetuneCost
         legality = Legality.FATAL
     else:
         legality = Legality.STALL
-    return RetuneCost(
+    result = RetuneCost(
         boundary=boundary,
         legality=legality,
         quiet_window_s=quiet,
@@ -217,6 +240,10 @@ def assess(rhythm: JobRhythm, retune_s: float, boundary: Boundary) -> RetuneCost
         stall_s=stall,
         accelerators=rhythm.accelerators,
     )
+    # Validate finite derived results before exposing a successful classification.
+    result.total_delay_s
+    result.lost_accelerator_hours  # FATAL deliberately retains infinite cost.
+    return result
 
 
 def ladder(rhythm: JobRhythm, retune_s: float) -> Tuple[RetuneCost, ...]:
@@ -323,9 +350,9 @@ def _breakpoints(rhythm: JobRhythm) -> List[float]:
     for b in finite:
         quiet_b = rhythm.quiet_window_s(b)
         points.add(quiet_b)
-        points.add(quiet_b + rhythm.collective_timeout_s)
+        points.add(_derived('breakpoint', lambda: quiet_b + rhythm.collective_timeout_s))
         for c in Boundary:
-            crossing = quiet_b + rhythm.mean_wait_s(c) - rhythm.mean_wait_s(b)
+            crossing = _derived('breakpoint', lambda: quiet_b + rhythm.mean_wait_s(c) - rhythm.mean_wait_s(b))
             if crossing > 0:
                 points.add(crossing)
     return sorted(points)
@@ -351,10 +378,10 @@ def disagreement_intervals(
     for lo, hi in zip(points, points[1:]):
         if hi <= lo:
             continue
-        probes.append((lo, hi, objectives_disagree(rhythm, (lo + hi) / 2.0) is not None))
+        probes.append((lo, hi, objectives_disagree(rhythm, _derived('probe', lambda: (lo + hi) / 2.0)) is not None))
     tail_start = points[-1]
     probes.append((tail_start, math.inf,
-                   objectives_disagree(rhythm, tail_start * 2.0 + 1.0) is not None))
+                   objectives_disagree(rhythm, _derived('probe', lambda: tail_start * 2.0 + 1.0)) is not None))
 
     intervals: List[Tuple[float, float]] = []
     for lo, hi, disagrees in probes:
@@ -377,5 +404,5 @@ def disagreement_width_s(rhythm: JobRhythm) -> float:
     for lo, hi in disagreement_intervals(rhythm):
         if math.isinf(hi):
             return math.inf
-        total += hi - lo
+        total = _derived('disagreement_width_s', lambda: total + (hi - lo))
     return total

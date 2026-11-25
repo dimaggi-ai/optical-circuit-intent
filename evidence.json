@@ -60,7 +60,7 @@
       "sources": [
         "src/ocintent/drift.py"
       ],
-      "transformation": "SOURCES.md S2: representative 40 ps/km/K from published 37–40 range; input, not model calibration. Registry only checks linearity, not coefficient accuracy.",
+      "transformation": "SOURCES.md S2: representative 40 ps/km/K from published 37\u201340 range; input, not model calibration. Registry only checks linearity, not coefficient accuracy.",
       "uncertainty": "Scope and qualifications stated in transformation and linked source; no unreported confidence interval",
       "affected_outputs": [
         "published conclusion",
@@ -197,11 +197,11 @@
     },
     {
       "path": "README.md",
-      "sha256": "627bbb76392470093fc8ef07dd89e5ed332de36a4f21705701ce2e98b09d9af8"
+      "sha256": "12dc6d48169801cfa4e807a6219cc7ce279ab0df261c01f4c882fdb8248b5529"
     },
     {
       "path": "src/ocintent/legality.py",
-      "sha256": "88e4c26ce3117389c96ebde608d7e249c3e2e7bf85c4ddd67af5b1987148c06a"
+      "sha256": "057b585eb6cf8fe7d32bcdb1a0e4e5b135da05d94d7d73dc0c75dfd51f6e8616"
     }
   ]
 }
