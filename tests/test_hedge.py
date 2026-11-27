@@ -10,7 +10,10 @@ to rule out.
 
 from __future__ import annotations
 
+import hashlib
+import io
 import json
+import runpy
 import shutil
 import subprocess
 import sys
@@ -85,12 +88,73 @@ def test_an_unknown_run_is_a_key_error():
 def test_the_fetch_script_is_a_verified_no_op_once_the_files_are_present():
     """Runs without the network: everything is present, so nothing is fetched."""
     proc = subprocess.run(
-        [sys.executable, str(ROOT / "data" / "hedge" / "fetch_hedge.py")],
+        [sys.executable, "-B", str(ROOT / "data" / "hedge" / "fetch_hedge.py"), "--verify-only"],
         capture_output=True, text=True, cwd=ROOT,
         env={"PYTHONPATH": str(ROOT / "src"), "PATH": "/usr/bin:/bin"},
     )
     assert proc.returncode == 0, proc.stderr
     assert "all 15 files present and verified" in proc.stdout
+
+
+@pytest.fixture
+def synthetic_fetcher(tmp_path, monkeypatch):
+    """One synthetic pinned file; no upstream data or network involved."""
+    namespace = runpy.run_path(str(DATA / "fetch_hedge.py"))
+    main = namespace["main"]
+    payload = b"synthetic pinned content\n"
+    manifest = {"fixture/sample.log": hashlib.sha256(payload).hexdigest()}
+    monkeypatch.setattr(hedge, "MANIFEST", manifest)
+    monkeypatch.setitem(main.__globals__, "MANIFEST", manifest)
+    monkeypatch.setitem(main.__globals__, "HERE", tmp_path / "cache")
+    return main, tmp_path / "cache", payload
+
+
+def _cache_snapshot(root):
+    return {str(p.relative_to(root)): (p.is_dir(), p.stat().st_mtime_ns,
+                                      None if p.is_dir() else p.read_bytes())
+            for p in root.rglob("*")}
+
+
+def test_verify_only_missing_corrupt_and_repaired_cache_never_fetches_or_writes(
+        synthetic_fetcher, tmp_path, monkeypatch, capsys):
+    main, cache, payload = synthetic_fetcher
+    attempts = []
+    def blocked_fetch(*args, **kwargs):
+        attempts.append(args)
+        raise AssertionError("verification attempted network")
+    monkeypatch.setattr("urllib.request.urlopen", blocked_fetch)
+    target = cache / "fixture/sample.log"
+    for stage in ("missing", "corrupt", "repaired"):
+        if stage != "missing":
+            target.parent.mkdir(parents=True, exist_ok=True)
+            target.write_bytes(b"corrupt" if stage == "corrupt" else payload)
+        before = _cache_snapshot(tmp_path)
+        with monkeypatch.context() as writes:
+            def no_mkdir(*args, **kwargs):
+                pytest.fail("verification attempted directory creation")
+            writes.setattr(Path, "mkdir", no_mkdir)
+            assert main(["--verify-only"]) == (0 if stage == "repaired" else 1)
+        assert attempts == []
+        assert _cache_snapshot(tmp_path) == before
+        output = capsys.readouterr()
+        if stage == "repaired":
+            assert "all 1 files present and verified" in output.out
+        else:
+            assert ("missing" if stage == "missing" else "sha256 mismatch") in output.err
+            assert "not fetched" in output.err
+
+
+def test_default_fetch_still_downloads_and_verifies_synthetic_fixture(synthetic_fetcher, monkeypatch):
+    main, cache, payload = synthetic_fetcher
+    calls = []
+    def fake_fetch(url, timeout):
+        calls.append((url, timeout))
+        return io.BytesIO(payload)
+    monkeypatch.setattr("urllib.request.urlopen", fake_fetch)
+    assert main([]) == 0
+    assert len(calls) == 1 and calls[0][1] == 60
+    assert (cache / "fixture/sample.log").read_bytes() == payload
+    assert not list(cache.rglob("*.tmp"))
 
 
 # --- the markers, on synthetic samples --------------------------------------
