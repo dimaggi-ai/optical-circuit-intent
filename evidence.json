@@ -197,7 +197,7 @@
     },
     {
       "path": "README.md",
-      "sha256": "12dc6d48169801cfa4e807a6219cc7ce279ab0df261c01f4c882fdb8248b5529"
+      "sha256": "4408306f29e7208faeb499b04be28b3e6f09324dfb47b057b6f9a1033d0103fd"
     },
     {
       "path": "src/ocintent/legality.py",

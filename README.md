@@ -450,6 +450,10 @@ pip install optical-circuit-intent
 
 No dependencies outside the standard library.
 
+## Retune input contract
+
+`JobRhythm` requires ordinary Python int/float finite timings (excluding bool), preserving positive durations and nonnegative cross-stitch time strictly below the step duration. Accelerator/checkpoint/epoch counts are positive ordinary integers within the supported finite numeric range; the checkpoint traffic flag is an actual bool. `assess` accepts finite nonnegative retune seconds, including zero. Unsupported inputs or accidental nonfinite derived windows, periods, costs, delays or breakpoint/probe arithmetic raise named `ValueError`; no arbitrary hardware ceiling is imposed. Deliberate output infinities remain: the between-jobs quiet window, fatal accelerator-hour cost and unbounded disagreement interval/width. The `ladder` and `disagree` CLI commands return exit 2 with a concise stderr reason and no partial result on these refusals; corrected valid input recovers normally. The `checkpoint` command also constructs `JobRhythm` and therefore shares its validation, but currently surfaces a rhythm refusal as an uncaught `ValueError` rather than the exit-2 handling provided by `ladder` and `disagree`. Other checkpoint-specific, intent, radix, drift and ledger input contracts are outside this correction. This does not qualify a physical controller.
+
 ## Documents
 
 - [`docs/the-models.md`](docs/the-models.md) — what each of the six is for
@@ -464,7 +468,3 @@ No dependencies outside the standard library.
 Part of the [DIMAGGI usable-capacity series](https://dimaggi-ai.github.io/research).
 
 MIT licensed. Copyright (c) 2026 Margaret Nanyonga.
-
-### Retune input contract
-
-`JobRhythm` requires ordinary Python int/float finite timings (excluding bool), preserving positive durations and nonnegative cross-stitch time strictly below the step duration. Accelerator/checkpoint/epoch counts are positive ordinary integers within the supported finite numeric range; the checkpoint traffic flag is an actual bool. `assess` accepts finite nonnegative retune seconds, including zero. Unsupported inputs or accidental nonfinite derived windows, periods, costs, delays or breakpoint/probe arithmetic raise named `ValueError`; no arbitrary hardware ceiling is imposed. Deliberate output infinities remain: the between-jobs quiet window, fatal accelerator-hour cost and unbounded disagreement interval/width. The `ladder` and `disagree` CLI commands return exit 2 with a concise stderr reason and no partial result on these refusals; corrected valid input recovers normally. This boundary does not validate other intent, radix, drift, checkpoint or ledger inputs, nor qualify a physical controller.
