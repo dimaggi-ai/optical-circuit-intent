@@ -197,11 +197,11 @@
     },
     {
       "path": "README.md",
-      "sha256": "627bbb76392470093fc8ef07dd89e5ed332de36a4f21705701ce2e98b09d9af8"
+      "sha256": "4408306f29e7208faeb499b04be28b3e6f09324dfb47b057b6f9a1033d0103fd"
     },
     {
       "path": "src/ocintent/legality.py",
-      "sha256": "88e4c26ce3117389c96ebde608d7e249c3e2e7bf85c4ddd67af5b1987148c06a"
+      "sha256": "057b585eb6cf8fe7d32bcdb1a0e4e5b135da05d94d7d73dc0c75dfd51f6e8616"
     }
   ]
 }
