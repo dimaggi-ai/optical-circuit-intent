@@ -9,10 +9,14 @@ logs --- from github.com/hedge-wan/hedge at the commit pinned in
 Fetched rather than vendored: the upstream repository carries no license
 grant, so redistribution is not this repository's call to make. Run this
 (``make data``) before the tests, the registry, or ``ocintent hedge``.
+Use ``python3 -B data/hedge/fetch_hedge.py --verify-only`` to check the
+existing cache without downloading or creating data directories. Missing
+or altered files remain errors; verification never repairs them.
 """
 
 from __future__ import annotations
 
+import argparse
 import sys
 import urllib.request
 from pathlib import Path
@@ -23,12 +27,20 @@ sys.path.insert(0, str(HERE.parents[1] / "src"))
 from ocintent.hedge import HEDGE_COMMIT, HEDGE_RAW_BASE, MANIFEST, sha256_of, verify  # noqa: E402
 
 
-def main() -> int:
+def main(argv: list[str] | None = None) -> int:
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--verify-only", action="store_true",
+                        help="verify cached files without downloading or writing data")
+    args = parser.parse_args(argv)
     problems = verify(HERE)
     if not problems:
         print(f"data/hedge: all {len(MANIFEST)} files present and verified against "
               f"commit {HEDGE_COMMIT[:12]}")
         return 0
+    if args.verify_only:
+        for problem in problems:
+            print(f"{problem.path}: {problem.what}; verification only, not fetched", file=sys.stderr)
+        return 1
     for problem in problems:
         rel = problem.path
         target = HERE / rel
